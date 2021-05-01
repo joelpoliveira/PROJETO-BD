@@ -30,8 +30,25 @@ def criarLeilao():
 	minPrice = input('Preço mínimo: ')
 	title = input('Titulo do leilão: ')
 	IdLeilao = random.randint(0,10000000000)
+	
 	data = input('Data (Ano-Mes-Dia)')
+	dataSplit = data.split("-")
+	
+	#Controlo inputs
+	while(dataSplit[0] < 2021 or (dataSplit[1] < 1 or dataSplit[1] > 12) or (dataSplit[2] > 31 or dataSplit[2] < 1)):
+		print("Valores inválidos")
+		data = input('Data (Ano-Mes-Dia)')
+		dataSplit = data.split("-")
+	
 	tempo = input('Data (horas:minutos:segundos)')
+	tempoSplit = tempo.split(":")
+	
+	#Controlo inputs
+	while((tempoSplit[0]<24 or tempo.Split[0] < 1) or (tempoSplit[1] > 60 or tempoSplit[2] < 0) or (tempoSplit[0] >60 or tempoSplit[0] < 0))
+		print("Valores inválidos")
+		tempo = input('Data (horas:minutos:segundos)')
+		tempoSplit = tempo.split(":")
+	
 	endDate =("%s %s",data,tempo)
 	id_vendedor = #ainda não definido
 	itemId = random.randint(1000000000000, 9999999999999)
