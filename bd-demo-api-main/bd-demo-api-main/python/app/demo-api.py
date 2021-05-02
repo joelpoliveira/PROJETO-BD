@@ -47,7 +47,7 @@ def hello():
 ##   http://localhost:8080/departments/
 ##
 
-@app.route("/dbproj/", methods=['GET'], strict_slashes=True)
+@app.route("/dbproj/user", methods=['GET'], strict_slashes=True)
 def get_all_departments():
     logger.info("###              DEMO: GET /dbproj              ###");   
 
@@ -79,7 +79,7 @@ def get_all_departments():
 ##   http://localhost:8080/departments/10
 ##
 
-@app.route("/dbproj/<userid>", methods=['GET'])
+@app.route("/dbproj/user/<userid>", methods=['GET'])
 def get_department(userid):
     logger.info("###              DEMO: GET /dbproj/<user>              ###");   
 
@@ -112,35 +112,44 @@ def get_department(userid):
 ##
 
 
-@app.route("/dbproj/user", methods=['POST'])
+@app.route("/dbproj/user", methods=['POST','PUT'])
 def add_user():
-    logger.info("###              DEMO: POST /dbproj              ###");   
     payload = request.get_json()
 
     conn = db_connection()
     cur = conn.cursor()
+    
+    if request.method=='POST':
+        cur.execute("SELECT coalesce(max(userid) + 1, 0) FROM utilizador")
+        next_userid = cur.fetchone()
+        cur.close()
+        cur = conn.cursor()
+        
+        logger.info("---- new user  ----")
+        logger.debug(f'payload: {payload}')
 
-    logger.info("---- new user  ----")
-    logger.debug(f'payload: {payload}')
+        # parameterized queries, good for security and performance
+        statement = """
+                    INSERT INTO utilizador (userid, username, password, email) 
+                    VALUES ( %s, %s, %s, %s)"""
 
-    # parameterized queries, good for security and performance
-    statement = """
-                  INSERT INTO utilizador (userid, username, email) 
-                          VALUES ( %s,   %s ,   %s )"""
+        values = (str(next_userid[0]), payload["username"], payload["password"], payload["email"])
 
-    values = (payload["userid"], payload["username"], payload["email"])
-
-    try:
-        cur.execute(statement, values)
-        cur.execute("commit")
-        result = 'Inserted!'
-    except (Exception, psycopg2.DatabaseError) as error:
-        logger.error(error)
-        result = 'Failed!'
-    finally:
-        if conn is not None:
-            conn.close()
-
+        try:
+            cur.execute(statement, values)
+            cur.execute("commit")
+            result = { "userid" : str(next_userid[0]) }
+        except psycopg2.IntegrityError as error:
+            logger.error(error)
+            result = {"erro":"Integrity Error"}
+        except Exception as error:
+            logger.error(error)
+            result = {"erro":"Unspecified Error"}
+        finally:
+            if conn is not None:
+                conn.close()
+    else:
+        cur.execute("""SELECT password FROM utilizador where username = %s""", (payload["username"],))
     return jsonify(result)
 
 
