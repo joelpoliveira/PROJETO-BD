@@ -113,9 +113,7 @@ def licitar():
 # Inserir na BD
     cursor.execute("insert into licitacao(valor,utilizador_userid,leilao_leilaiid)\
                        values(value,idUser,auctionID)")
-
-
-
-	
-	
-	
+def main():
+    option = -1
+    while (option != 0):
+        option = get_options()
