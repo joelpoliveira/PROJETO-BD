@@ -151,9 +151,11 @@ def add_user():
             result = {"erro":"401"}
     return jsonify(result)
 
+@app.route("/dbproj/leilao", methods=['POST'])
+def add_leilao():
+    payload = request.get_json()
 
-
-
+    conn = db_connection()
 ##
 ##      Demo PUT
 ##
