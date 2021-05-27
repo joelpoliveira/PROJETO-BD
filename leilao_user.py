@@ -51,10 +51,10 @@ def criarLeilao():
     descricao = input('Descricao: ')
 
     # Colocar as informacoes na base de dados
-    cursor.execute("insert into leilao(minprice,auctiontitle,leilaoid,datafim,utilizador_userid,item_itemid \
+    cursor.execute("insert into leilao(minprice,auctiontitle,leilaoid,datafim,utilizador_userid,item_itemid) \
 	values(minprice,title,IdLeilao,endDate,id_vendedor,item_itemid)")
 
-    cursor.execute("insert into description(description,data,leilao_leilaoid \
+    cursor.execute("insert into description(description,data,leilao_leilaoid) \
 	values(descricao,endDate,IdLeilao)")
 
 
