@@ -19,8 +19,9 @@ def connect_db():
 def criarLeilao():
     connection = connect_db()
     cursor = connection.cursor()
-
+    
     # Input de informação
+    itemName = input('Nome do item')
     minPrice = input('Preço minimo: ')
     title = input('Titulo do leilao: ')
     IdLeilao = random.randint(0, 10000000000)
@@ -49,10 +50,14 @@ def criarLeilao():
     id_vendedor = input("sellerID: ")
     itemId = random.randint(1000000000000, 9999999999999)
     descricao = input('Descricao: ')
+    
 
     # Colocar as informacoes na base de dados
     cursor.execute("insert into leilao(minprice,auctiontitle,leilaoid,datafim,utilizador_userid,item_itemid) \
-	values(minprice,title,IdLeilao,endDate,id_vendedor,item_itemid)")
+	values(minprice,title,IdLeilao,endDate,id_vendedor,itemId)")
+    
+    cursor.execute('insert into item(itemid, itemname, utilizador_userid) \
+    values(itemId,itemName,id_vendedor)')
 
     cursor.execute("insert into description(description,data,leilao_leilaoid) \
 	values(descricao,endDate,IdLeilao)")
