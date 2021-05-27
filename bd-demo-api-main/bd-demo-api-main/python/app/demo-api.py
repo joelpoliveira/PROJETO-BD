@@ -15,12 +15,14 @@
 ##   BD 2021 Team - https://dei.uc.pt/lei/
 ##   University of Coimbra
 
- 
+from jose import jwt
 from flask import Flask, jsonify, request
-import logging, psycopg2, time
+import logging, psycopg2, time, sys
 
 app = Flask(__name__) 
 
+def db_error_code(error):
+    return error.pgcode
 
 @app.route('/') 
 def hello(): 
@@ -100,17 +102,7 @@ def get_department(userid):
     return jsonify(content)
 
 
-
-##
-##      Demo POST
-##
-## Add a new department in a JSON payload
-##
-## To use it, you need to use postman or curl: 
-##
-##   curl -X POST http://localhost:8080/departments/ -H "Content-Type: application/json" -d '{"localidade": "Polo II", "ndep": 69, "nome": "Seguranca"}'
-##
-
+## Login or Create a new User
 
 @app.route("/dbproj/user", methods=['POST','PUT'])
 def add_user():
@@ -123,33 +115,40 @@ def add_user():
         cur.execute("SELECT coalesce(max(userid) + 1, 0) FROM utilizador")
         next_userid = cur.fetchone()
         cur.close()
+
         cur = conn.cursor()
         
         logger.info("---- new user  ----")
         logger.debug(f'payload: {payload}')
 
-        # parameterized queries, good for security and performance
+
         statement = """
                     INSERT INTO utilizador (userid, username, password, email) 
                     VALUES ( %s, %s, %s, %s)"""
 
-        values = (str(next_userid[0]), payload["username"], payload["password"], payload["email"])
+        values = (str(next_userid[0]), payload["username"].strip(), payload["password"], payload["email"].strip())
 
         try:
             cur.execute(statement, values)
             cur.execute("commit")
             result = { "userid" : str(next_userid[0]) }
-        except psycopg2.IntegrityError as error:
-            logger.error(error)
-            result = {"erro":"Integrity Error"}
-        except Exception as error:
-            logger.error(error)
-            result = {"erro":"Unspecified Error"}
+        except Exception as erro:
+            result = {"erro" : str(db_error_code(erro))}
         finally:
             if conn is not None:
                 conn.close()
     else:
-        cur.execute("""SELECT password FROM utilizador where username = %s""", (payload["username"],))
+        cur.execute("""SELECT password FROM utilizador where username = %s""", (payload["username"].strip(),))
+        row = cur.fetchone()
+
+        try:
+            if row[0] == payload["password"]:
+                token = jwt.encode(payload, 'secret', algorithm = 'HS256')
+                result = {"authToken":token}
+            else:
+                result = {"erro":"401"}
+        except Exception as error:
+            result = {"erro":"401"}
     return jsonify(result)
 
 
