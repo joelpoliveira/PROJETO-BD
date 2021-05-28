@@ -17,7 +17,8 @@
 
 from jose import jwt
 from flask import Flask, jsonify, request
-import logging, psycopg2, time, sys
+from dotenv import load_dotenv
+import logging, psycopg2, time, sys, os
 
 app = Flask(__name__) 
 
@@ -108,7 +109,7 @@ def get_department(userid):
 ##
 ## ----------------------
 @app.route("/dbproj/user", methods=['POST','PUT'])
-def add_user():
+def add_user_or_login():
     payload = request.get_json()
 
     conn = db_connection()
@@ -141,12 +142,15 @@ def add_user():
             if conn is not None:
                 conn.close()
     else:
-        cur.execute("""SELECT password FROM utilizador where username = %s""", (payload["username"].strip(),))
+        cur.execute("""SELECT password, userid FROM utilizador where username = %s""", (payload["username"].strip(),))
         row = cur.fetchone()
-
         try:
             if row[0] == payload["password"]:
-                token = jwt.encode(payload, 'secret', algorithm = 'HS256')
+                to_token = { 
+                            "sub": str(row[1]),
+                            "username": payload["username"]    
+                         }
+                token = jwt.encode(to_token, 'secret', algorithm = 'HS256')
                 result = {"authToken":token}
             else:
                 result = {"erro":"401"}
@@ -157,22 +161,80 @@ def add_user():
                 conn.close()
     return jsonify(result)
 
-##TODO funcao para gerar uniqueID do  leilao
 
 ## ----------------------
 ##
-## Create new Leilão
+## Create new Item
 ##
 ## ----------------------
 
-@app.route("/dbproj/leilao", methods=['POST'])
-def add_leilao():
+@app.route("/dbproj/item", methods=['POST'])
+def add_item():
+    token = request.headers.get("authToken")
     payload = request.get_json()
 
     conn = db_connection()
     cur = conn.cursor()
+    try:
+        info = jwt.decode(token, 'secret', algorithms=["HS256"])
+    
+        cur.execute("SELECT coalesce(max(leilaoid) + 1, 0) FROM leilao")
+        next_leilaoid = cur.fetchone()
+        cur.close()
 
+        cur = conn.cursor()
+        
+        logger.info("---- new leilao  ----")
+        logger.debug(f'payload: {payload}')
 
+        statement = """
+                        INSERT INTO leilao (minprice, auctiontitle, leilaoid, datafim, utilizador_userid, item_itemid) 
+                        VALUES ( %s, %s, %s, %s, %s, %s)"""
+
+        values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
+
+        
+    except Exception as err:
+        result = { "erro" : "401"}
+    
+    return jsonify(result)
+
+#-----------------
+#
+# Create new Auction
+#
+#------------------
+
+@app.route("/dbproj/leilao", methods=['POST'])
+def add_leilao():
+    token = request.headers.get("authToken")
+    payload = request.get_json()
+
+    conn = db_connection()
+    cur = conn.cursor()
+    try:
+        info = jwt.decode(token, 'secret', algorithms=["HS256"])
+    
+        cur.execute("SELECT coalesce(max(leilaoid) + 1, 0) FROM leilao")
+        next_leilaoid = cur.fetchone()
+        cur.close()
+
+        cur = conn.cursor()
+        
+        logger.info("---- new leilao  ----")
+        logger.debug(f'payload: {payload}')
+
+        statement = """
+                        INSERT INTO leilao (minprice, auctiontitle, leilaoid, datafim, utilizador_userid, item_itemid) 
+                        VALUES ( %s, %s, %s, %s, %s, %s)"""
+
+        values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
+
+        
+    except Exception as err:
+        result = { "erro" : "401"}
+    
+    return jsonify(result)
 
 
 ##
@@ -236,11 +298,13 @@ def update_departments():
 ##########################################################
 
 def db_connection():
-    db = psycopg2.connect(host = "db_container",
-                            dbname = "projetobd",
-                            port = "5432",
-                            user = "userleilao",
-                            password = "password"
+    load_dotenv()
+
+    db = psycopg2.connect(host = os.getenv('HOST'),
+                            dbname = os.getenv('DB_NAME'),
+                            port = os.getenv('PORT'),
+                            user = os.getenv('USER'),
+                            password = os.getenv('PASSWORD')
                         )
     return db
 

@@ -12,7 +12,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n    \"username\": \"joel\",\r\n    \"password\": \"password\",\r\n    \"email\": \"uc2019227468@uc.pt\"\r\n}",
+					"raw": "{\r\n    \"username\": \"joel\",\r\n    \"password\": \"facil\",\r\n    \"email\": \"joel@uc.pt\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -54,7 +54,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n    \"username\": \"joel\",\r\n    \"password\": \"password\"\r\n}",
+					"raw": "{\r\n    \"username\": \"joel\",\r\n    \"password\": \"123\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -79,9 +79,39 @@
 		{
 			"name": "CriarLeilao",
 			"request": {
-				"method": "GET",
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{authToken}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
 				"header": [],
-				"url": null
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"min_price\": \"\",\r\n    \"auction_title\": \"\",\r\n    \"data_fim\": \"\", //\"aaaa-mm-ddTHH:MM\"\r\n    \"item_id\": \"\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/dbproj/leilao",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"dbproj",
+						"leilao"
+					]
+				}
 			},
 			"response": []
 		}
