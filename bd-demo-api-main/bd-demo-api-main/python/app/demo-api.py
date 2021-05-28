@@ -177,22 +177,6 @@ def add_item():
     cur = conn.cursor()
     try:
         info = jwt.decode(token, 'secret', algorithms=["HS256"])
-    
-        cur.execute("SELECT coalesce(max(leilaoid) + 1, 0) FROM leilao")
-        next_leilaoid = cur.fetchone()
-        cur.close()
-
-        cur = conn.cursor()
-        
-        logger.info("---- new leilao  ----")
-        logger.debug(f'payload: {payload}')
-
-        statement = """
-                        INSERT INTO leilao (minprice, auctiontitle, leilaoid, datafim, utilizador_userid, item_itemid) 
-                        VALUES ( %s, %s, %s, %s, %s, %s)"""
-
-        values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
-
         
     except Exception as err:
         result = { "erro" : "401"}

@@ -131,10 +131,10 @@ def licitar():
     
     
 def alterarLeilao():
-    idLeilao = input("Leilao a alterar")
     connection = connect_db()
     cursor = connection.cursor()
     
+    idLeilao = input("Leilao a alterar")
     cursor.execute("select * \
                    from leilao \
                    where leilaoid = idLeilao")
@@ -157,8 +157,18 @@ def alterarLeilao():
 	values(descricao,endDate,idLeilao)")
     
     
-
-    
+def mural():
+    connection = connect_db()
+    cursor = connection.cursor()
+    IDleilao = input("ID do leilao ao qual mandar mensagem: ")
+    cursor.execute("select * \
+                   from leilao \
+                   where leilaoid = IDLeilao")
+    message = input("Mensagem: ")
+    user = input("Utilizador: ")
+    time = input("data: ")
+    cursor.execute("insert into mensagem(mensagem, data, utilizador_userid, leilao_leilaoid) \
+                   values(message, time, user, IDleilao)")
     
 
 def check(array):
