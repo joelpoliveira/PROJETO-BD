@@ -70,8 +70,8 @@ def criarLeilao():
 def listarLeiloes():
     connection = connect_db()
     cursor = connection.cursor()
-    cursor.execute("select description, data ,(distinct leilao_leilaoid)\
-	from description)")
+    cursor.execute("select description, data , leilao_leilaoid)\
+	from description")
     for elem in cursor:
         print("LeilaoId: %d ,Descricao: %s  ", elem[2], elem[0])
 
@@ -97,7 +97,7 @@ def licitar():
             value = input("valor: ")
 
         # -------------------------------INTRODUZIR ID_USER----------------------------------
-    idUser = input("UserID: ")
+    idUser = input("ID utilizador: ")
     aux = 0
     while (aux==0):
         cursor.execute("select utilizador_userid \
@@ -106,9 +106,12 @@ def licitar():
                            if utilizador_userid is not null\
                            aux=1\
                            end if")
+        if (aux==0):
+            print("ID invalido. Insira novo valor")
+            idUser = input("ID utilizador: ")
 
     # -------------------------------INTRODUZIR auctionID----------------------------------
-    auctionID = input("auctionID: ")
+    auctionID = input("ID leilao: ")
 
     aux = 0
     while (aux==0):
@@ -118,10 +121,45 @@ def licitar():
                            if utilizador_userid is not null\
                            aux=1\
                            end if")
+        if (aux==0):
+            print("ID invalido. Insira novo valor")
+            idUser = input("ID leilao: ")
 
 # Inserir na BD
     cursor.execute("insert into licitacao(valor,utilizador_userid,leilao_leilaiid)\
                        values(value,idUser,auctionID)")
+    
+    
+def alterarLeilao():
+    idLeilao = input("Leilao a alterar")
+    connection = connect_db()
+    cursor = connection.cursor()
+    
+    cursor.execute("select * \
+                   from leilao \
+                   where leilaoid = idLeilao")
+
+#Altera a informação do leilao
+    
+    price = cursor[0]
+    title = input("Titulo")
+    idLeilao = random.randint(0, 10000000000)
+    endDate = cursor[3]
+    idUser = cursor[4]
+    idItem = cursor[5]
+    cursor.execute("insert into leilao(minprice,auctiontitle,leilaoid,datafim,utilizador_userid,item_itemid) \
+                   values(price,title,idLeilao,endDate,idUser,idItem)")
+    
+#Altera a descrição do item
+    descricao = input("Descricao: ")
+    
+    cursor.execute("insert into description(description,data,leilao_leilaoid) \
+	values(descricao,endDate,idLeilao)")
+    
+    
+
+    
+    
 
 def check(array):
     
