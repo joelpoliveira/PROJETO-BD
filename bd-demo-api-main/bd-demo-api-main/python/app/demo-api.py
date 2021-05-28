@@ -102,8 +102,11 @@ def get_department(userid):
     return jsonify(content)
 
 
+## ----------------------
+##
 ## Login or Create a new User
-
+##
+## ----------------------
 @app.route("/dbproj/user", methods=['POST','PUT'])
 def add_user():
     payload = request.get_json()
@@ -149,13 +152,29 @@ def add_user():
                 result = {"erro":"401"}
         except Exception as error:
             result = {"erro":"401"}
+        finally:
+            if conn is not None:
+                conn.close()
     return jsonify(result)
+
+##TODO funcao para gerar uniqueID do  leilao
+
+## ----------------------
+##
+## Create new Leilão
+##
+## ----------------------
 
 @app.route("/dbproj/leilao", methods=['POST'])
 def add_leilao():
     payload = request.get_json()
 
     conn = db_connection()
+    cur = conn.cursor()
+
+
+
+
 ##
 ##      Demo PUT
 ##
