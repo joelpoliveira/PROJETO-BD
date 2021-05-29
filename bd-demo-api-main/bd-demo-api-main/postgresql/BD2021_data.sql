@@ -84,7 +84,29 @@ ALTER TABLE description ADD CONSTRAINT description_fk1 FOREIGN KEY (leilao_leila
 \set autocommit off;
 SET TIME ZONE 'Europe/London'
 
-create or replace procedure licitar()
-language plpsql
+create or replace procedure licitar(p_valor licitacao.valor%type, 
+									p_user_id licitacao.utilizador_userid%type, 
+									p_leilaoid licitacao.leilao_leilaoid%type)
+language plpgsql
 as $$
 declare
+	c_licitacao cursor for SELECT * FROM licitacao FOR UPDATE;
+	c_leilao cursor (c_p_leilaoid leilao.leilaoid%type) FOR 
+												SELECT minprice, utilizador_userid 
+												FROM leilao 
+												WHERE leilaoid = c_p_leilaoid;
+	v_valor licitacao.valor%type;
+	v_user_id licitacao.utilizador_userid%type;
+begin
+	OPEN c_leilao(p_leilaoid);
+	OPEN c_licitacao;
+	fetch c_leilao into v_valor, v_user_id;
+	
+	if p_user_id!=v_user_id then 
+		if p_valor > (select max(valor) from licitacao where leilao_leilaoid = p_leilaoid group by leilao_leilaoid) then
+			INSERT INTO licitacao VALUES (p_valor, NOW(), p_user_id, p_leilaoid);
+		end if;
+	end if;
+	COMMIT;
+end;
+$$;
