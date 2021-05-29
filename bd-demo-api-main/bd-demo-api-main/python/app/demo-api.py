@@ -82,9 +82,19 @@ def add_item():
     cur = conn.cursor()
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+        logger.debug(f"{info}")
+        statement = """
+                        INSERT INTO item VALUES ( %s, %s, %s)"""
+
+        values = ( payload["itemid"], payload["itemname"], info["sub"])
+        cur.execute(statement, values)
+        cur.execute("commit")
+        result = {"itemid": payload["itemid"]}
         
     except Exception as err:
-        result = { "erro" : "401"}
+        cur.execute("rollback")
+        logger.error(str(err))
+        result = { "erro" : str(err)}
     
     return jsonify(result)
 
@@ -156,6 +166,7 @@ def add_leilao():
 
 @app.route("/dbproj/leilao/<leilaoid>", methods=['GET'])
 def auction_details(leilaoid):
+    token = request.headers.get("Authorization")
     logger.info("---- leilaoid loaded  ----")
     logger.debug(f'leilaoid: {leilaoid}')
 
