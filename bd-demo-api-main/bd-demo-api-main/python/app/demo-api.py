@@ -75,7 +75,7 @@ def add_user_or_login():
 
 @app.route("/dbproj/item", methods=['POST'])
 def add_item():
-    token = request.headers.get("Authorization").strip().split()
+    token = request.headers.get("Authorization")
     payload = request.get_json()
 
     conn = db_connection()
@@ -96,7 +96,7 @@ def add_item():
 
 @app.route("/dbproj/leilao", methods=['POST'])
 def add_leilao():
-    token = request.headers.get("Authorization").strip().split()
+    token = request.headers.get("Authorization")
     payload = request.get_json()
 
     logger.info("---- token retrieved  ----")
@@ -109,7 +109,7 @@ def add_leilao():
 
         logger.info("---- token loaded  ----")
         logger.debug(f'true_token: {info}')
-        
+
         cur.execute("SELECT coalesce(max(leilaoid) + 1, 0) FROM leilao")
         next_leilaoid = cur.fetchone()
         cur.close()
@@ -126,31 +126,13 @@ def add_leilao():
                         INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s)"""
 
         values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
-        
-        cur.execute(statement, values)
-        result = f'Updated: {cur.rowcount}'
-        cur.execute("commit")
-        
-    except (Exception, psycopg2.DatabaseError) as error:
-        logger.error(error)
-        result = 'Failed!'
-    
-    return jsonify(result)
-
-@app.route("/dbproj/leilao", methods=['POST'])
-def listar_leiloes():
-    token = request.headers.get("Authorization")
-    payload = request.get_json()
-
         cur.execute(statement, values)
 
         ## ------- add description to descriptions table ------##
 
         statement = """
                         INSERT INTO description VALUES ( %s, %s, %s )"""
-
         values = ( payload["description"], "now()", str(next_leilaoid[0]) )
-
         cur.execute(statement, values)
 
         cur.execute("commit")
@@ -176,11 +158,6 @@ def listar_leiloes():
 def auction_details(leilaoid):
     logger.info("---- leilaoid loaded  ----")
     logger.debug(f'leilaoid: {leilaoid}')
-
-    token = request.headers.get("Authorization").strip().split()
-
-    logger.info("---- token retrieved  ----")
-    logger.debug(f'token: {token}')
 
     conn = db_connection()
     cur = conn.cursor()
@@ -239,6 +216,47 @@ def auction_details(leilaoid):
         if conn is not None:
             conn.close()
     return jsonify(result)
+
+def alterarLeilao():
+    token = request.headers.get("Authorization")
+    payload = request.get_json()
+
+    conn = db_connection()
+    cursor = conn.cursor()
+
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        cursor.execute("select * \
+                       from leilao \
+                       where leilaoid = idLeilao")
+    
+    #Altera a informação do leilao
+        
+        price = cursor[0]
+        title = payload["title"]
+        idLeilao = random.randint(0, 10000000000)
+        endDate = cursor[3]
+        idUser = cursor[4]
+        idItem = cursor[5]
+        statement = ("insert into leilao(minprice,auctiontitle,leilaoid,datafim,utilizador_userid,item_itemid) \
+                       values(%s,%s,%s,%s,%s,%s)")
+        values = (price, title, idLeilao, endDate, idUser, idItem)
+        cursor.execute(statement, values)
+        result = f'Updated'
+        cursor.close()        
+    except (Exception, psycopg2.DatabaseError) as error:
+        logger.error(error)
+        result = 'Failed!'
+    
+#Altera a descrição do item
+        
+    cursor = conn.cursor()
+    cursor.execute("select * \
+                    from description \
+                    where leilao_leilaoid = %s")    
+    statement("insert into description(description,data,leilao_leilaoid) \
+	values(%s,endDate,idLeilao)")
 
 
 #----------------------
