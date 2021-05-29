@@ -1,7 +1,7 @@
 from jose import jwt
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
-import logging, psycopg2, time, sys, os
+import logging, psycopg2, time, sys, os, random
 
 app = Flask(__name__) 
 
@@ -75,15 +75,13 @@ def add_user_or_login():
 
 @app.route("/dbproj/item", methods=['POST'])
 def add_item():
-    token = request.headers.get("authToken")
+    token = request.headers.get("Authorization").strip().split()
     payload = request.get_json()
 
     conn = db_connection()
     cur = conn.cursor()
     try:
-        info = jwt.decode(token, 'secret', algorithms=["HS256"])
-    
-        
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
         
     except Exception as err:
         result = { "erro" : "401"}
@@ -128,6 +126,21 @@ def add_leilao():
                         INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s)"""
 
         values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
+        
+        cur.execute(statement, values)
+        result = f'Updated: {cur.rowcount}'
+        cur.execute("commit")
+        
+    except (Exception, psycopg2.DatabaseError) as error:
+        logger.error(error)
+        result = 'Failed!'
+    
+    return jsonify(result)
+
+@app.route("/dbproj/leilao", methods=['POST'])
+def listar_leiloes():
+    token = request.headers.get("Authorization")
+    payload = request.get_json()
 
         cur.execute(statement, values)
 
