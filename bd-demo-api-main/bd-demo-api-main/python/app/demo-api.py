@@ -95,6 +95,9 @@ def add_item():
         cur.execute("rollback")
         logger.error(str(err))
         result = { "erro" : str(err)}
+    finally:
+            if conn is not None:
+                conn.close()
     
     return jsonify(result)
 
@@ -228,6 +231,8 @@ def auction_details(leilaoid):
             conn.close()
     return jsonify(result)
 
+
+@app.route("http://localhost:8080/dbproj/leilao/{leilaoId}", methods=['POST'])
 def alterarLeilao():
     token = request.headers.get("Authorization")
     payload = request.get_json()
@@ -244,21 +249,20 @@ def alterarLeilao():
     
     #Altera a informação do leilao
         
-        price = cursor[0]
-        title = payload["title"]
-        idLeilao = random.randint(0, 10000000000)
-        endDate = cursor[3]
-        idUser = cursor[4]
-        idItem = cursor[5]
-        statement = ("insert into leilao(minprice,auctiontitle,leilaoid,datafim,utilizador_userid,item_itemid) \
-                       values(%s,%s,%s,%s,%s,%s)")
-        values = (price, title, idLeilao, endDate, idUser, idItem)
+        statement = ("UPDATE leilao \
+                      SET title = %s\
+                      WHERE leilaoid = %s")
+        values =(payload["title"],payload["leilaoid"])
         cursor.execute(statement, values)
+        
         result = f'Updated'
         cursor.close()        
     except (Exception, psycopg2.DatabaseError) as error:
         logger.error(error)
         result = 'Failed!'
+    finally:
+            if conn is not None:
+                conn.close()
     
 #Altera a descrição do item
         
