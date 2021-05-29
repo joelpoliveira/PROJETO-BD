@@ -178,21 +178,7 @@ def add_item():
     try:
         info = jwt.decode(token, 'secret', algorithms=["HS256"])
     
-        cur.execute("SELECT coalesce(max(leilaoid) + 1, 0) FROM leilao")
-        next_leilaoid = cur.fetchone()
-        cur.close()
-
-        cur = conn.cursor()
         
-        logger.info("---- new leilao  ----")
-        logger.debug(f'payload: {payload}')
-
-        statement = """
-                        INSERT INTO leilao (minprice, auctiontitle, leilaoid, datafim, utilizador_userid, item_itemid) 
-                        VALUES ( %s, %s, %s, %s, %s, %s)"""
-
-        values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
-
         
     except Exception as err:
         result = { "erro" : "401"}
@@ -207,14 +193,20 @@ def add_item():
 
 @app.route("/dbproj/leilao", methods=['POST'])
 def add_leilao():
-    token = request.headers.get("authToken")
+    token = request.headers.get("Authorization").strip().split()
     payload = request.get_json()
+
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
 
     conn = db_connection()
     cur = conn.cursor()
     try:
-        info = jwt.decode(token, 'secret', algorithms=["HS256"])
-    
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        logger.info("---- token loaded  ----")
+        logger.debug(f'true_token: {info}')
+        
         cur.execute("SELECT coalesce(max(leilaoid) + 1, 0) FROM leilao")
         next_leilaoid = cur.fetchone()
         cur.close()
@@ -224,64 +216,67 @@ def add_leilao():
         logger.info("---- new leilao  ----")
         logger.debug(f'payload: {payload}')
 
+
+        ## -------- add auction to auctions table ------##
+
         statement = """
-                        INSERT INTO leilao (minprice, auctiontitle, leilaoid, datafim, utilizador_userid, item_itemid) 
-                        VALUES ( %s, %s, %s, %s, %s, %s)"""
+                        INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s)"""
 
         values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
 
-        
+        cur.execute(statement, values)
+
+        ## ------- add description to descriptions table ------##
+
+        statement = """
+                        INSERT INTO description VALUES ( %s, %s, %s )"""
+
+        values = ( payload["description"], "now()", str(next_leilaoid[0]) )
+
+        cur.execute(statement, values)
+
+        cur.execute("commit")
+
+        result = {"leilaoid": str(next_leilaoid[0])}
     except Exception as err:
         result = { "erro" : "401"}
-    
+        cur.execute("rollback")
+    finally:
+        if conn is not None:
+            conn.close()
     return jsonify(result)
 
 
-##
-##      Demo PUT
-##
-## Update a department based on the a JSON payload
-##
-## To use it, you need to use postman or curl: 
-##
-##   curl -X PUT http://localhost:8080/departments/ -H "Content-Type: application/json" -d '{"ndep": 69, "localidade": "Porto"}'
-##
+#----------------------
+#
+# List All Auctions
+#
+#------------------
 
-@app.route("/dbproj/", methods=['PUT'])
-def update_departments():
-    logger.info("###              DEMO: PUT /dbproj              ###");   
-    content = request.get_json()
+@app.route("/dbproj/leiloes", methods=['GET'])
+def list_auctions():
+    conn = db_connection()
+    token = request.headers.get("Authorization").strip().split()
 
     conn = db_connection()
     cur = conn.cursor()
-
-
-    #if content["ndep"] is None or content["nome"] is None :
-    #    return 'ndep and nome are required to update'
-
-    if "userid" not in content or "email" not in content:
-        return 'userid and email are required to update'
-
-
-    logger.info("---- update department  ----")
-    logger.info(f'content: {content}')
-
-    # parameterized queries, good for security and performance
-    statement ="""
-                UPDATE utilizador 
-                  SET username = %s
-                WHERE userid = %s"""
-
-
-    values = (content["email"], content["userid"])
-
     try:
-        res = cur.execute(statement, values)
-        result = f'Updated: {cur.rowcount}'
-        cur.execute("commit")
-    except (Exception, psycopg2.DatabaseError) as error:
-        logger.error(error)
-        result = 'Failed!'
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        cur.execute("""SELECT leilao_leilaoid, description FROM description 
+                        WHERE data = (SELECT MAX(data) FROM description
+                                                        GROUP BY leilao_leilaoid)""")
+
+        rows = cur.fetchall()
+
+        result = []
+        for i in rows:
+            result.append( { 
+                            "leilaoid" : str(i[0]), 
+                            "descricao" : i[1]
+                            } )
+    except Exception as err:
+        result = {"erro" : "401"}
     finally:
         if conn is not None:
             conn.close()
