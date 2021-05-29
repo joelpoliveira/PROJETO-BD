@@ -109,7 +109,7 @@ def add_item():
 
 @app.route("/dbproj/leilao", methods=['POST'])
 def add_leilao():
-    token = request.headers.get("Authorization")
+    token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
     logger.info("---- token retrieved  ----")
@@ -173,6 +173,8 @@ def auction_details(leilaoid):
     logger.info("---- leilaoid loaded  ----")
     logger.debug(f'leilaoid: {leilaoid}')
 
+    token = request.headers.get("Authorization").split()
+
     conn = db_connection()
     cur = conn.cursor()
     try:
@@ -234,7 +236,7 @@ def auction_details(leilaoid):
 
 @app.route("http://localhost:8080/dbproj/leilao/{leilaoId}", methods=['POST'])
 def alterarLeilao():
-    token = request.headers.get("Authorization")
+    token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
     conn = db_connection()
@@ -356,7 +358,7 @@ def search_auctions(keyword):
                             } )
         cur.close()
 
-        if type(keyword)==int:
+        if str(keyword).isnumeric():
             cur = conn.cursor()
             statement = """SELECT leilao_leilaoid, description FROM description,leilao 
                                 WHERE item_itemid=%s AND leilaoid=leilao_leilaoid AND data in (SELECT max(data) FROM description, leilao 
@@ -379,7 +381,59 @@ def search_auctions(keyword):
             conn.close()
     return jsonify(result)
 
+# ----------------------------
+#
+# Get Auctions with User Participation
+#
+# ------------------------
 
+@app.route("/dbproj/leilao/user", methods=['GET'])
+def user_auctions():
+    token = request.headers.get("Authorization").strip().split()
+
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
+
+    conn = db_connection()
+    cur = conn.cursor()
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        statement = """SELECT * FROM leilao WHERE leilaoid = (SELECT DISTINCT(leilao_leilaoid)
+                                                                FROM licitacao
+                                                                WHERE utilizador_userid = %s)"""
+        values = (info["sub"],)
+        cur.execute(statement, values)
+        rows = cur.fetchall()
+        
+        result = []
+        for i in rows:
+            result.append( {
+                            "leilaoid":str(i[2]),
+                            "titulo":i[1].strip(),
+                            "data_fim":str(i[3])
+                            } )
+        cur.close()
+
+        cur = conn.cursor()
+
+        statement = """SELECT * FROM leilao WHERE utilizador_userid = %s"""
+        cur.execute(statement, values)
+        rows = cur.fetchall()
+
+        for i in rows:
+            result.append( {
+                            "leilaoid":str(i[2]),
+                            "titulo":i[1].strip(),
+                            "data_fim":str(i[3])
+                            } )
+    except Exception as err:
+        logger.error(str(err))
+        result = {"erro":str(err)}
+    finally:
+        if conn is not None:
+            conn.close()
+    return jsonify(result)
 
 
 

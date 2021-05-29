@@ -5,7 +5,7 @@ CRIAR LEILÃO: 						X;
 LIST TODOS LEILÕES:					O;	check -- JOAO
 PESQUISAR LEILÕES:					O;
 CONSULTAR LEILÃO:					O;
-LIST LEILÕES COM USER:				X; check -- JOEL
+LIST LEILÕES COM USER:				O; check -- JOEL
 EFETUAR LICITAÇÃO:					X;
 EDITAR LEILÃO:						X;
 MSG MURAL DO LEILÃO:				X; check -- JOAO
