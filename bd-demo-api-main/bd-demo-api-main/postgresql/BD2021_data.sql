@@ -83,3 +83,8 @@ ALTER TABLE description ADD CONSTRAINT description_fk1 FOREIGN KEY (leilao_leila
 
 \set autocommit off;
 SET TIME ZONE 'Europe/London'
+
+create or replace procedure licitar()
+language plpsql
+as $$
+declare

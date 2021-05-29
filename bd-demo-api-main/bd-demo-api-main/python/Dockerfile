@@ -19,6 +19,8 @@ run pip install python-jose
 
 run pip install python-dotenv
 
+run pip install isbnlib
+
 copy . /app
 
 volume ["/app"]

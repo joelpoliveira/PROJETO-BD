@@ -75,7 +75,7 @@ def add_user_or_login():
 
 @app.route("/dbproj/item", methods=['POST'])
 def add_item():
-    token = request.headers.get("Authorization")
+    token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
     conn = db_connection()
@@ -96,7 +96,7 @@ def add_item():
 
 @app.route("/dbproj/leilao", methods=['POST'])
 def add_leilao():
-    token = request.headers.get("Authorization")
+    token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
     logger.info("---- token retrieved  ----")
@@ -159,7 +159,7 @@ def auction_details(leilaoid):
     logger.info("---- leilaoid loaded  ----")
     logger.debug(f'leilaoid: {leilaoid}')
 
-    token = request.headers.get("Authorization")
+    token = request.headers.get("Authorization").split()
 
     conn = db_connection()
     cur = conn.cursor()
@@ -221,7 +221,7 @@ def auction_details(leilaoid):
 
 
 def alterarLeilao():
-    token = request.headers.get("Authorization")
+    token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
     conn = db_connection()
@@ -396,7 +396,7 @@ def user_auctions():
         for i in rows:
             result.append( {
                             "leilaoid":str(i[2]),
-                            "titulo":i[1],
+                            "titulo":i[1].strip(),
                             "data_fim":str(i[3])
                             } )
         cur.close()
@@ -410,7 +410,7 @@ def user_auctions():
         for i in rows:
             result.append( {
                             "leilaoid":str(i[2]),
-                            "titulo":i[1],
+                            "titulo":i[1].strip(),
                             "data_fim":str(i[3])
                             } )
     except Exception as err:
