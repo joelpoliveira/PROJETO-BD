@@ -1,20 +1,3 @@
-##
-## =============================================
-## ============== Bases de Dados ===============
-## ============== LEI  2020/2021 ===============
-## =============================================
-## =================== Demo ====================
-## =============================================
-## =============================================
-## === Department of Informatics Engineering ===
-## =========== University of Coimbra ===========
-## =============================================
-##
-## Authors: 
-##   Nuno Antunes <nmsa@dei.uc.pt>
-##   BD 2021 Team - https://dei.uc.pt/lei/
-##   University of Coimbra
-
 from jose import jwt
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
@@ -24,84 +7,6 @@ app = Flask(__name__)
 
 def db_error_code(error):
     return error.pgcode
-
-@app.route('/') 
-def hello(): 
-    return """
-
-    Hello World!  <br/>
-    <br/>
-    Check the sources for instructions on how to use the endpoints!<br/>
-    <br/>
-    BD 2021 Team<br/>
-    <br/>
-    """
-
-
-
-
-##
-##      Demo GET
-##
-## Obtain all departments, in JSON format
-##
-## To use it, access: 
-## 
-##   http://localhost:8080/departments/
-##
-
-@app.route("/dbproj/user", methods=['GET'], strict_slashes=True)
-def get_all_departments():
-    logger.info("###              DEMO: GET /dbproj              ###");   
-
-    conn = db_connection()
-    cur = conn.cursor()
-
-    cur.execute("SELECT userid, username, email FROM utilizador")
-    rows = cur.fetchall()
-
-    payload = []
-    logger.debug("---- departments  ----")
-    for row in rows:
-        logger.debug(row)
-        content = {'userid': int(row[0]), 'username': row[1], 'email': row[2]}
-        payload.append(content) # appending to the payload to be returned
-
-    conn.close()
-    return jsonify(payload)
-
-
-
-##
-##      Demo GET
-##
-## Obtain department with ndep <ndep>
-##
-## To use it, access: 
-## 
-##   http://localhost:8080/departments/10
-##
-
-@app.route("/dbproj/user/<userid>", methods=['GET'])
-def get_department(userid):
-    logger.info("###              DEMO: GET /dbproj/<user>              ###");   
-
-    logger.debug(f'user: {userid}')
-    conn = db_connection()
-    cur = conn.cursor()
-
-    cur.execute("SELECT userid, username, email FROM utilizador where userid = %s", (userid,) )
-    rows = cur.fetchall()
-
-    row = rows[0]
-
-    logger.debug("---- selected department  ----")
-    logger.debug(row)
-    content = {'userid': int(row[0]), 'username': row[1], 'email': row[2]}
-
-    conn.close ()
-    return jsonify(content)
-
 
 ## ----------------------
 ##
@@ -239,8 +144,84 @@ def add_leilao():
 
         result = {"leilaoid": str(next_leilaoid[0])}
     except Exception as err:
+        logger.error(str(err))
         result = { "erro" : "401"}
         cur.execute("rollback")
+    finally:
+        if conn is not None:
+            conn.close()
+    return jsonify(result)
+
+
+# ------------
+#
+# Get Auction Details
+#
+# --------------
+
+@app.route("/dbproj/leilao/<leilaoid>", methods=['GET'])
+def auction_details(leilaoid):
+    logger.info("---- leilaoid loaded  ----")
+    logger.debug(f'leilaoid: {leilaoid}')
+
+    token = request.headers.get("Authorization").strip().split()
+
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
+
+    conn = db_connection()
+    cur = conn.cursor()
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        logger.info("---- token loaded  ----")
+        logger.debug(f'true_token: {info}')
+
+        statement = """SELECT description, datafim FROM description, leilao
+                            WHERE leilaoid = %s AND data in (SELECT max(data) FROM description, leilao
+                                                WHERE datafim>NOW() AND leilao_leilaoid = %s
+                                                        GROUP BY leilao_leilaoid);"""
+        values = ( str(leilaoid), str(leilaoid) )
+        cur.execute(statement, values)
+        row = cur.fetchone()
+
+        if row is not None:
+            result = {
+                        "leilaoid":str(leilaoid),
+                        "descricao":row[0],
+                        "data_fim":str(row[1])
+                    }
+
+            cur.close()
+
+            cur = conn.cursor()
+            statement = """SELECT data, mensagem, utilizador_userid FROM mensagem WHERE leilao_leilaoid = %s"""
+            values = (str(leilaoid), )
+            cur.execute(statement, values)
+
+            rows = cur.fetchall()
+
+            for i in rows:
+                result["mensagens"] = result.get("mensagens", []) + [ { "userid":str(i[2]),
+                                                                        "data": str(i[0]),
+                                                                        "mensagem":i[1] } ]
+            cur.close()
+
+            cur = conn.cursor()
+            statement = """SELECT utilizador_userid, valor, data FROM licitacao WHERE leilao_leilaoid = %s""" 
+            cur.execute(statement, values)
+
+            rows = cur.fetchall()
+
+            for i in rows:
+                result["licitacoes"] = result.get("licitacoes", []) + [{"userid":str(i[0]),
+                                                                        "data":str(i[1]),
+                                                                        "valor":str(i[2]) } ]
+        else:
+            result = []
+    except Exception as err:
+        logger.error(str(err))
+        result = {"erro" : "401"}
     finally:
         if conn is not None:
             conn.close()
@@ -253,18 +234,24 @@ def add_leilao():
 #
 #------------------
 
-@app.route("/dbproj/leiloes", methods=['GET'])
+@app.route("/dbproj/leiloes", methods=['GET'], strict_slashes=True)
 def list_auctions():
-    conn = db_connection()
     token = request.headers.get("Authorization").strip().split()
+
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
 
     conn = db_connection()
     cur = conn.cursor()
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
 
-        cur.execute("""SELECT leilao_leilaoid, description FROM description 
-                        WHERE data = (SELECT MAX(data) FROM description
+        logger.info("---- token loaded  ----")
+        logger.debug(f'true_token: {info}')
+        
+        cur.execute("""SELECT leilao_leilaoid,description FROM description 
+                            WHERE data in (SELECT max(data) FROM description, leilao 
+                                                WHERE datafim>NOW() AND leilaoid=leilao_leilaoid 
                                                         GROUP BY leilao_leilaoid)""")
 
         rows = cur.fetchall()
@@ -276,13 +263,75 @@ def list_auctions():
                             "descricao" : i[1]
                             } )
     except Exception as err:
+        logger.error(str(err))
         result = {"erro" : "401"}
     finally:
         if conn is not None:
             conn.close()
     return jsonify(result)
 
+#----------------------
+#
+# List Auctions Searched
+#
+#------------------
 
+@app.route("/dbproj/leiloes/<keyword>", methods=['GET'])
+def search_auctions(keyword):
+    logger.info("---- keyword loaded  ----")
+    logger.debug(f'keyword: {keyword}')
+
+    token = request.headers.get("Authorization").strip().split()
+
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
+
+    conn = db_connection()
+    cur = conn.cursor()
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        logger.info("---- token loaded  ----")
+        logger.debug(f'true_token: {info}')
+
+        statement = """SELECT leilao_leilaoid, description FROM description 
+                            WHERE description like %s AND data in (SELECT max(data) FROM description, leilao 
+                                                WHERE datafim>NOW() AND leilaoid=leilao_leilaoid 
+                                                        GROUP BY leilao_leilaoid)"""
+        values = ( f'%{keyword}%', )
+        cur.execute(statement, values)
+        rows = cur.fetchall()
+
+        result = []
+        for i in rows:
+            result.append( { 
+                            "leilaoid" : str(i[0]), 
+                            "descricao" : i[1]
+                            } )
+        cur.close()
+
+        if type(keyword)==int:
+            cur = conn.cursor()
+            statement = """SELECT leilao_leilaoid, description FROM description,leilao 
+                                WHERE item_itemid=%s AND leilaoid=leilao_leilaoid AND data in (SELECT max(data) FROM description, leilao 
+                                                    WHERE datafim>NOW() AND leilaoid=leilao_leilaoid 
+                                                            GROUP BY leilao_leilaoid)""" 
+            values = (str(keyword), )
+            cur.execute(statement, values)
+            rows = cur.fetchall()
+
+            for i in rows:
+                result.append( { 
+                                "leilaoid" : str(i[0]), 
+                                "descricao" : i[1]
+                                } )
+    except Exception as err:
+        logger.error(str(err))
+        result = {"erro" : "401"}
+    finally:
+        if conn is not None:
+            conn.close()
+    return jsonify(result)
 
 
 
