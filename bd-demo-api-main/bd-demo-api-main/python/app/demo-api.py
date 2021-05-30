@@ -168,7 +168,7 @@ def add_leilao():
         values = payload["item_id"]
         cur.execute(statement, values)
         row = cur.fetchone()
-        if row[0] == int(info["sub"]) 
+        if row[0] == int(info["sub"]): 
 
         ## -------- add auction to auctions table ------##
 
