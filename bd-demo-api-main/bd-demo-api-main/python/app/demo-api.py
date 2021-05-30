@@ -162,26 +162,36 @@ def add_leilao():
         
         logger.info("---- new leilao  ----")
         logger.debug(f'payload: {payload}')
-
+        
+        statement = ("SELECT utilizador_userid \
+                    FROM item \
+                    WHERE itemid = %s")
+        values = payload["item_id"]
+        cur.execute(statement, values)
+        row = cur.fetchone()
+        if row[0] == int(info["sub"]): 
 
         ## -------- add auction to auctions table ------##
 
-        statement = """
-                        INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s)"""
-
-        values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
-        cur.execute(statement, values)
-
-        ## ------- add description to descriptions table ------##
-
-        statement = """
-                        INSERT INTO description VALUES ( %s, %s, %s, %s )"""
-        values = ( payload["description"], "now()", payload["auction_title"] ,str(next_leilaoid[0]) )
-        cur.execute(statement, values)
-
-        cur.execute("commit")
-
-        result = {"leilaoid": str(next_leilaoid[0])}
+            statement = """ 
+                        
+                            INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s)"""
+    
+            values = ( info["sub"], payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
+            cur.execute(statement, values)
+    
+            ## ------- add description to descriptions table ------##
+    
+            statement = """
+                            INSERT INTO description VALUES ( %s, %s, %s, %s )"""
+            values = ( payload["description"], "now()", payload["auction_title"] ,str(next_leilaoid[0]) )
+            cur.execute(statement, values)
+    
+            cur.execute("commit")
+    
+            result = {"leilaoid": str(next_leilaoid[0])}
+        else: raise Exception
+        
     except Exception as err:
         logger.error(str(err))
         result = { "erro" : str(err)}
@@ -200,7 +210,7 @@ def add_leilao():
 # --------------
 
 @app.route("/dbproj/leilao/<leilaoid>", methods=['GET'])
-def auction_details_or_change(leilaoid):
+def auction_details(leilaoid):
     token = request.headers.get("Authorization")
     logger.info("---- leilaoid loaded  ----")
     logger.debug(f'leilaoid: {leilaoid}')
@@ -286,8 +296,10 @@ def alterarLeilao(auctionid):
         logger.debug(f'true_token: {info}')
         #Altera a informação na tabela leilao
         
-        statement = """ UPDATE leilao SET auctiontitle = %s WHERE leilaoid = %s""" 
-        values =( payload["auctiontitle"], str(auctionid))
+        statement = """ UPDATE leilao 
+                        SET auctiontitle = %s 
+                        WHERE leilaoid = %s AND utilizador_userid = %s """ 
+        values =( payload["auctiontitle"], str(auctionid), info["sub"])
         cursor.execute(statement, values)    
         # cursor.close()        
 
@@ -581,13 +593,48 @@ def bid_auction(leilaoid, licitacao):
         logger.error(dberr)
         result = {"erro":str(db_error_code(dberr))}
         cur.execute("rollback")
-    except Exception as err:
-        result = {"erro":str(err.code)}
-        cur.execute("rollback")
     finally:
         if conn is not None:
             conn.close()
     return jsonify(result)
+
+@app.route("/dbproj/licitar/idleilao", methods = ['PUT'])
+def fimLeilao(idleilao):
+    token = request.headers.get("Authorization").split()
+
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
+
+    conn = db_connection()
+    cursor = conn.cursor()
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        logger.info("---- info loaded  ----")
+        logger.debug(f'info: {info}')
+        
+        statement = """ UPDATE item 
+                        SET utilizador_userid = (SELECT utilizador_userid FROM licitacao 
+                            WHERE data = (SELECT max(data) FROM licitacao WHERE leilao_leilaoid = %s) 
+                        WHERE now() =  (SELECT data FROM leilao
+                                        WHERE leilaoid = %s)"""
+        values = (idleilao, idleilao)
+
+        cursor.execute(statement, values)
+        cursor.execute("commit")
+
+        result = "Leilão Terminado"
+    
+    except psycopg2.DatabaseError as dberr:
+        logger.error(dberr)
+        result = {"erro":str(db_error_code(dberr))}
+        cursor.execute("rollback")
+    finally:
+        if conn is not None:
+            conn.close()
+    return jsonify(result)
+    
+    
 
 ##########################################################
 ## DATABASE ACCESS
