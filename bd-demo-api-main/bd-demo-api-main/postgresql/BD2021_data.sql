@@ -34,7 +34,8 @@ CREATE TABLE licitacao (
 CREATE TABLE mensagem (
 	mensagem		 VARCHAR(512) NOT NULL,
 	data		 TIMESTAMP NOT NULL,
-	utilizador_userid NUMERIC(8,0) DEFAULT NULL,
+	directedto	 NUMERIC(8,0),
+	utilizador_userid NUMERIC(8,0) NOT NULL DEFAULT 0,
 	leilao_leilaoid	 NUMERIC(8,0) NOT NULL DEFAULT 0,
 	PRIMARY KEY(data)
 );
@@ -62,6 +63,8 @@ ALTER TABLE description ADD CONSTRAINT description_fk1 FOREIGN KEY (leilao_leila
 \set autocommit off;
 SET TIME ZONE 'Europe/London';
 
+
+-- FUNCAO LICITAR -----------------
 create or replace procedure licitar(p_valor licitacao.valor%type, 
 									p_user_id licitacao.utilizador_userid%type, 
 									p_leilaoid licitacao.leilao_leilaoid%type)
@@ -98,12 +101,14 @@ begin
 end;
 $$;
 
+
+--- Funcao Ver Mensagens ----------------
 create or replace function get_messages(p_user_id mensagem.utilizador_userid%type)
 returns table ( data_envio timestamp, mensagens varchar, msg_leilaoid leilao.leilaoid%type )
 language plpgsql
 as $$
 declare
-	c_licitacoes cursor for select leilao_leilaoid 
+	c_licitacoes cursor for select DISTINCT(leilao_leilaoid) 
 							from licitacao
 							where utilizador_userid = p_user_id;
 	c_leilao cursor for select leilaoid
@@ -117,7 +122,7 @@ begin
 		fetch  c_licitacoes into v_leilaoid;
 		exit when not found;
 			for row_now in ( SELECT * FROM mensagem 
-							WHERE utilizador_userid is not NULL
+							WHERE directedto is not NULL
 									AND leilao_leilaoid = v_leilaoid) loop
 				data_envio := row_now.data;
 				mensagens := row_now.mensagem;
@@ -131,7 +136,7 @@ begin
 		fetch  c_leilao into v_leilaoid;
 		exit when not found;
 			for row_now in ( SELECT * FROM mensagem 
-							WHERE utilizador_userid is not NULL
+							WHERE directedto is not NULL
 									AND leilao_leilaoid = v_leilaoid) loop
 				data_envio := row_now.data;
 				mensagens := row_now.mensagem;
@@ -141,7 +146,7 @@ begin
 	end loop;
 	
 	for row_now in ( SELECT * FROM mensagem 
-						WHERE utilizador_userid = p_user_id) loop
+						WHERE utilizador_userid = p_user_id AND directedto is NULL) loop
 		data_envio := row_now.data;
 		mensagens := row_now.mensagem;
 		msg_leilaoid := row_now.leilao_leilaoid;
@@ -150,3 +155,27 @@ begin
 end;
 $$;
 
+
+-- Funcao Para trigger licitacao ultrapassada --------------
+create or replace function notify_user_bid_exceeded()
+returns trigger
+language plpgsql
+as $$
+declare 
+	c_licitacao_trigger cursor for SELECT utilizador_userid FROM licitacao 
+							WHERE data = (SELECT max(data) FROM licitacao WHERE leilao_leilaoid = new.leilao_leilaoid);
+	v_userid mensagem.utilizador_userid%type;
+begin
+	open c_licitacao_trigger;
+	fetch c_licitacao_trigger into v_userid;
+	if v_userid!=new.utilizador_userid then
+		insert into mensagem values('Licitacao Ultrapassada', NOW(), v_userid, new.utilizador_userid, new.leilao_leilaoid);
+	end if;
+	return new;
+end;
+$$;
+
+create trigger tbi_licitacao_into_mensagem
+before insert on licitacao
+for each row 
+execute procedure notify_user_bid_exceeded();

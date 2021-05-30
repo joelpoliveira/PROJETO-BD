@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import logging, psycopg2, time, sys, os
 from random import randint
 from hashlib import md5
+
 app = Flask(__name__) 
 
 def db_error_code(error):
@@ -320,6 +321,11 @@ def alterarLeilao(auctionid):
                 conn.close()
     return jsonify(result)
 
+# -------------
+#
+# Send Message to Auction
+#
+# -----------------
 
 @app.route("/dbproj/mensagem/<idLeilao>", methods=['POST'])
 def enviarMensagem(idLeilao):
@@ -545,7 +551,7 @@ def user_auctions():
 
 # --------------
 #
-# 
+# Bid into Auction
 #
 # ----------------
 
