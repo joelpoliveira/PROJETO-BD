@@ -104,12 +104,12 @@ $$;
 
 --- Funcao Ver Mensagens ----------------
 create or replace function get_messages(p_user_id mensagem.utilizador_userid%type)
-returns table ( data_envio timestamp, mensagens varchar, msg_leilaoid leilao.leilaoid%type )
+returns table ( data_envio timestamp, mensagens varchar, msg_leilaoid leilao.leilaoid%type, msg_userid utilizador.userid%type )
 language plpgsql
 as $$
 declare
-	c_licitacoes cursor for select DISTINCT(leilao_leilaoid) 
-							from licitacao
+	c_mensagens cursor for select DISTINCT leilao_leilaoid
+							from mensagem
 							where utilizador_userid = p_user_id;
 	c_leilao cursor for select leilaoid
 						from leilao
@@ -117,20 +117,21 @@ declare
 	v_leilaoid leilao.leilaoid%type;
 	row_now record;
 begin
-	open c_licitacoes;	
+	open c_mensagens;
 	loop
-		fetch  c_licitacoes into v_leilaoid;
+		fetch c_mensagens into v_leilaoid;
 		exit when not found;
-			for row_now in ( SELECT * FROM mensagem 
-							WHERE directedto is not NULL
-									AND leilao_leilaoid = v_leilaoid) loop
+			for row_now in ( SELECT * FROM mensagem
+								WHERE (directedto is NULL
+									AND leilao_leilaoid = v_leilaoid) OR directedto = p_user_id) loop
 				data_envio := row_now.data;
 				mensagens := row_now.mensagem;
 				msg_leilaoid := row_now.leilao_leilaoid;
+				msg_userid := row_now.utilizador_userid;
 				return next;
 			end loop;
 	end loop;
-	
+
 	open c_leilao;
 	loop
 		fetch  c_leilao into v_leilaoid;
@@ -141,16 +142,9 @@ begin
 				data_envio := row_now.data;
 				mensagens := row_now.mensagem;
 				msg_leilaoid := row_now.leilao_leilaoid;
+				msg_userid := row_now.utilizador_userid;
 				return next;
 			end loop;
-	end loop;
-	
-	for row_now in ( SELECT * FROM mensagem 
-						WHERE utilizador_userid = p_user_id AND directedto is NULL) loop
-		data_envio := row_now.data;
-		mensagens := row_now.mensagem;
-		msg_leilaoid := row_now.leilao_leilaoid;
-		return next;
 	end loop;
 end;
 $$;
@@ -179,3 +173,5 @@ create trigger tbi_licitacao_into_mensagem
 before insert on licitacao
 for each row 
 execute procedure notify_user_bid_exceeded();
+
+-- Procedimento para verificar termino de leiloes que ainda decorrem ------------

@@ -124,7 +124,7 @@ def add_item_or_list():
         
     except Exception as err:
         cur.execute("rollback")
-        logger.error(str(err))
+        logger.error(err)
         result = { "erro" : str(err)}
     finally:
             if conn is not None:
@@ -163,13 +163,13 @@ def add_leilao():
         logger.info("---- new leilao  ----")
         logger.debug(f'payload: {payload}')
         
-        statement = ("SELECT utilizador_userid \
-                    FROM item \
-                    WHERE itemid = %s")
-        values = payload["item_id"]
+        statement = ("""SELECT utilizador_userid 
+                    FROM item 
+                    WHERE itemid = %s""")
+        values = ( str(payload["item_id"]) ,)
         cur.execute(statement, values)
         row = cur.fetchone()
-        if row[0] == int(info["sub"]): 
+        if row is not None and row[0] == int(info["sub"]): 
 
         ## -------- add auction to auctions table ------##
 
@@ -177,7 +177,7 @@ def add_leilao():
                         
                             INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s)"""
     
-            values = ( info["sub"], payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
+            values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
             cur.execute(statement, values)
     
             ## ------- add description to descriptions table ------##
@@ -350,20 +350,29 @@ def enviarMensagem(idLeilao):
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
         
-        statement = """
-                        INSERT INTO mensagem VALUES ( %s, %s, %s, %s)"""
-        values =(payload["mensagem"], "now()", info["sub"], idLeilao)
+        statement = """INSERT INTO mensagem (mensagem, data, utilizador_userid, leilao_leilaoid)
+                             VALUES ( %s, %s, %s, %s)"""
+        values =(payload["mensagem"], "now()", info["sub"], str(idLeilao))
         
         cursor.execute(statement,values)
         cursor.execute("commit")
-        result=idLeilao
-    except (Exception, psycopg2.DatabaseError) as error:
+        result={"result":"Succeded"}
+    except psycopg2.DatabaseError as error:
         logger.error(error)
-        result = 'Failed!'
+        result = {"erro":str(db_error_code(error))}
+    except Exception as generr:
+        logger.error(generr)
+        result = {"erro": str(generr.code)}
     finally:
             if conn is not None:
                 conn.close()
     return jsonify(result)
+
+# ------------------------
+#
+# Get Messages From Leilao
+#
+# ----------------------
 
 @app.route("/dbproj/mensagem", methods=['GET'])
 def mural():
@@ -376,26 +385,27 @@ def mural():
     
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
         statement = """
                         SELECT *
-                        FROM mensagem
-                        Where leilao_leilaoid = %s """
-        value = (str(payload["idAuction"]))
+                        FROM get_messages(%s) 
+                        ORDER BY data_envio DESC"""
+        value = ( info["sub"], )
         cursor.execute(statement,value)
         rows = cursor.fetchall()
         result = []
         for i in rows:
+            if i is not None:
                 result.append( {
-                                "mensagem" : str (i[0]),
-                                "data": str (i[1]),
-                                "userId": str (i[2]),
-                                "auctionId":str (i[3])
+                                "mensagem" : i[1],
+                                "data": str (i[0]),
+                                #"userId": str (i[3]),
+                                "auctionId":str(i[2])
                                 } )
-        cursor.execute("commit")
         
     except (Exception, psycopg2.DatabaseError) as error:
         logger.error(error)
-        result = {"erro": "Failed!"}
+        result = {"erro": str(error)}
     finally:
             if conn is not None:
                 conn.close()
@@ -525,7 +535,7 @@ def user_auctions():
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
 
-        statement = """SELECT * FROM leilao WHERE leilaoid = (SELECT DISTINCT(leilao_leilaoid)
+        statement = """SELECT * FROM leilao WHERE leilaoid in (SELECT DISTINCT(leilao_leilaoid)
                                                                 FROM licitacao
                                                                 WHERE utilizador_userid = %s)"""
         values = (info["sub"],)
@@ -598,7 +608,13 @@ def bid_auction(leilaoid, licitacao):
             conn.close()
     return jsonify(result)
 
-@app.route("/dbproj/licitar/idleilao", methods = ['PUT'])
+# -----------------------
+#
+# ENDPOINT QUE VERIFICA FIM DO LEILAO
+#
+# ------------------
+
+@app.route("/dbproj/termino/<idleiao>", methods = ['GET'])
 def fimLeilao(idleilao):
     token = request.headers.get("Authorization").split()
 
@@ -615,19 +631,22 @@ def fimLeilao(idleilao):
         
         statement = """ UPDATE item 
                         SET utilizador_userid = (SELECT utilizador_userid FROM licitacao 
-                            WHERE data = (SELECT max(data) FROM licitacao WHERE leilao_leilaoid = %s) 
-                        WHERE now() =  (SELECT data FROM leilao
-                                        WHERE leilaoid = %s)"""
+                                                    WHERE data = (SELECT max(data) FROM licitacao WHERE leilao_leilaoid = %s) 
+                        """
         values = (idleilao, idleilao)
 
         cursor.execute(statement, values)
         cursor.execute("commit")
 
-        result = "Leilão Terminado"
+        result = {"result": "auction ended"}
     
     except psycopg2.DatabaseError as dberr:
         logger.error(dberr)
         result = {"erro":str(db_error_code(dberr))}
+        cursor.execute("rollback")
+    except Exception as err:
+        logger.error(err)
+        result = {"erro": str(err)}
         cursor.execute("rollback")
     finally:
         if conn is not None:
