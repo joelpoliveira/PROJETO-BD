@@ -74,7 +74,7 @@ def add_user_or_login():
 ## ----------------------
 
 @app.route("/dbproj/item", methods=['POST'])
-def add_item():
+def add_item(): 
     token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
@@ -153,11 +153,12 @@ def add_leilao():
         result = {"leilaoid": str(next_leilaoid[0])}
     except Exception as err:
         logger.error(str(err))
-        result = { "erro" : "401"}
+        result = { "erro" : str(err)}
         cur.execute("rollback")
     finally:
         if conn is not None:
             conn.close()
+    
     return jsonify(result)
 
 
@@ -234,8 +235,8 @@ def auction_details(leilaoid):
     return jsonify(result)
 
 
-@app.route("http://localhost:8080/dbproj/leilao/{leilaoId}", methods=['POST'])
-def alterarLeilao():
+@app.route("/dbproj/leilao/<auctionid>", methods=['POST'])
+def alterarLeilao(auctionid):
     token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
@@ -244,36 +245,95 @@ def alterarLeilao():
 
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
-
-        cursor.execute("select * \
-                       from leilao \
-                       where leilaoid = idLeilao")
-    
+        
     #Altera a informação do leilao
         
-        statement = ("UPDATE leilao \
-                      SET title = %s\
-                      WHERE leilaoid = %s")
-        values =(payload["title"],payload["leilaoid"])
+        statement = """ UPDATE leilao \
+                      SET auctiontitle = %s \
+                      WHERE leilaoid = %s""" 
+        values =(str(payload["auctiontitle"]), str(auctionid))
         cursor.execute(statement, values)
+        cursor.execute("commit")
         
-        result = f'Updated'
+        result = auctionid
         cursor.close()        
+    except (Exception, psycopg2.DatabaseError) as error:
+        logger.error(error)
+        result = 'Failed!'
+    
+#Altera a descrição do item
+                
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+        cursor = conn.cursor()
+        statement = """ UPDATE description \
+                      SET description = %s \
+                      WHERE leilao_leilaoid = %s """ 
+        
+        values = (str(payload["description"]), str(auctionid))
+        cursor.execute(statement,values)
+        cursor.execute("commit")
+        result = auctionid
     except (Exception, psycopg2.DatabaseError) as error:
         logger.error(error)
         result = 'Failed!'
     finally:
             if conn is not None:
                 conn.close()
-    
-#Altera a descrição do item
-        
+    return result
+
+
+@app.route("/dbproj/mensagem/<idLeilao>", methods=['POST'])
+def enviarMensagem(idLeilao):
+    token = request.headers.get("Authorization").split()
+    payload = request.get_json()
+
+    conn = db_connection()
     cursor = conn.cursor()
-    cursor.execute("select * \
-                    from description \
-                    where leilao_leilaoid = %s")    
-    statement("insert into description(description,data,leilao_leilaoid) \
-	values(%s,endDate,idLeilao)")
+
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+        
+        statement = """
+                        INSERT INTO mensagem VALUES ( %s, %s, %s, %s)"""
+        values =(payload["mensagem"], "now()", info["sub"], idLeilao)
+        
+        cursor.execute(statement,values)
+        cursor.execute("commit")
+        result=idLeilao
+    except (Exception, psycopg2.DatabaseError) as error:
+        logger.error(error)
+        result = 'Failed!'
+    finally:
+            if conn is not None:
+                conn.close()
+    return result
+
+@app.route("/dbproj/mensagem", methods=['POST'])
+def mural():
+    token = request.headers.get("Authorization").split()
+    payload = request.get_json()
+
+    conn = db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+        statement = """
+                        SELECT *
+                        FROM mensagem
+                        Where leilao_leilaoid = %s """
+        value = (str(payload["idAuction"]))
+        cursor.execute(statement,value)
+        cursor.execute("commit")
+        result=value
+    except (Exception, psycopg2.DatabaseError) as error:
+        logger.error(error)
+        result = 'Failed!'
+    finally:
+            if conn is not None:
+                conn.close()
+    return result
 
 
 #----------------------
