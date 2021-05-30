@@ -345,10 +345,11 @@ def enviarMensagem(idLeilao):
     finally:
             if conn is not None:
                 conn.close()
-    return result
+    return jsonify(result)
 
 @app.route("/dbproj/mensagem", methods=['GET'])
 def mural():
+    
     token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
@@ -363,15 +364,24 @@ def mural():
                         Where leilao_leilaoid = %s """
         value = (str(payload["idAuction"]))
         cursor.execute(statement,value)
+        rows = cursor.fetchall()
+        result = []
+        for i in rows:
+                result.append( {
+                                "mensagem" : str (i[0]),
+                                "data": str (i[1]),
+                                "userId": str (i[2]),
+                                "auctionId":str (i[3])
+                                } )
         cursor.execute("commit")
-        result=value
+        
     except (Exception, psycopg2.DatabaseError) as error:
         logger.error(error)
-        result = 'Failed!'
+        result = {"erro": "Failed!"}
     finally:
             if conn is not None:
                 conn.close()
-    return result
+    return jsonify(result)
 
 
 #----------------------
