@@ -234,9 +234,6 @@ def auction_details(leilaoid):
             conn.close()
     return jsonify(result)
 
-
-@app.route("/dbproj/leilao/<auctionid>", methods=['POST'])
-def alterarLeilao(auctionid):
     token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
