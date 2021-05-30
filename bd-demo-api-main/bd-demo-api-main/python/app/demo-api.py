@@ -2,11 +2,19 @@ from jose import jwt
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 import logging, psycopg2, time, sys, os, random
+from random import randint
 
 app = Flask(__name__) 
 
 def db_error_code(error):
     return error.pgcode
+
+def get_isbn():
+    v = [randint(0,9) for i in range(9)]
+    ret = ''.join(list(map(str, v)))
+    check = sum( (i+1)*v[i] for i in range(9))%11
+    ret += 'X' if check==10 else str(check)
+    return ret
 
 ## ----------------------
 ##
@@ -82,14 +90,23 @@ def add_item():
     cur = conn.cursor()
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
-        logger.debug(f"{info}")
+        
+        next_itemid = get_isbn()
+        cur.execute("SELECT * FROM item WHERE itemid = %s", (next_itemid,))
+        row = cur.fetchone()
+
+        while row!=None:
+            next_itemid = get_isbn()
+            cur.execute("SELECT * FROM item WHERE itemid = %s", (next_itemid,))
+            row = cur.fetchall()
+
         statement = """
                         INSERT INTO item VALUES ( %s, %s, %s)"""
 
-        values = ( payload["itemid"], payload["itemname"], info["sub"])
+        values = ( next_itemid , payload["itemname"], info["sub"])
         cur.execute(statement, values)
         cur.execute("commit")
-        result = {"itemid": payload["itemid"]}
+        result = {"itemid": next_itemid }
         
     except Exception as err:
         cur.execute("rollback")

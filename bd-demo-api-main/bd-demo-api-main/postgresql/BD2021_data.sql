@@ -1,32 +1,10 @@
-/* 
-	# 
-	# Bases de Dados 2020/2021
-	# Trabalho Prático
-	#
-*/
-
-
-/* 
-   Fazer copy-paste deste ficheiro
-   para o Editor SQL e executar.
-*/
-
-/* 
-Estes dois comandos drop (comentados) permitem remover as tabelas emp e dep da base de dados (se ja' tiverem sido criadas anteriormente)
-
-drop table emp;
-drop table dep;
-*/
-
-/* Cria a tabela dos departamentos
- */
 CREATE TABLE leilao (
 	minprice		 NUMERIC(8,2) NOT NULL,
 	auctiontitle	 CHAR(255) NOT NULL,
 	leilaoid		 NUMERIC(8,0) DEFAULT 0,
 	datafim		 TIMESTAMP NOT NULL,
 	utilizador_userid NUMERIC(8,0) NOT NULL DEFAULT 0,
-	item_itemid	 NUMERIC(8,0) NOT NULL,
+	item_itemid	 CHAR(10) NOT NULL,
 	PRIMARY KEY(leilaoid)
 );
 
@@ -39,7 +17,7 @@ CREATE TABLE utilizador (
 );
 
 CREATE TABLE item (
-	itemid		 NUMERIC(8,0),
+	itemid		 CHAR(10),
 	itemname		 VARCHAR(512) NOT NULL,
 	utilizador_userid NUMERIC(8,0) NOT NULL DEFAULT 0,
 	PRIMARY KEY(itemid)
@@ -64,6 +42,7 @@ CREATE TABLE mensagem (
 CREATE TABLE description (
 	description	 VARCHAR(512) NOT NULL,
 	data		 TIMESTAMP NOT NULL,
+	title		 VARCHAR(50) NOT NULL,
 	leilao_leilaoid NUMERIC(8,0) DEFAULT 0,
 	PRIMARY KEY(data,leilao_leilaoid)
 );
@@ -71,7 +50,7 @@ CREATE TABLE description (
 ALTER TABLE leilao ADD CONSTRAINT leilao_fk1 FOREIGN KEY (utilizador_userid) REFERENCES utilizador(userid);
 ALTER TABLE leilao ADD CONSTRAINT leilao_fk2 FOREIGN KEY (item_itemid) REFERENCES item(itemid);
 ALTER TABLE leilao ADD CONSTRAINT check_leiloes_minprice_constraint CHECK (MinPrice >= 0);
-ALTER TABLE leilao ADD CONSTRAINT check_leiloes_datafim_constraint CHECK (DataFim >= current_timestamp);
+ALTER TABLE leilao ADD CONSTRAINT check_leiloes_datafim_constraint CHECK (DataFim >= now());
 ALTER TABLE item ADD CONSTRAINT item_fk1 FOREIGN KEY (utilizador_userid) REFERENCES utilizador(userid);
 ALTER TABLE licitacao ADD CONSTRAINT licitacao_fk1 FOREIGN KEY (utilizador_userid) REFERENCES utilizador(userid);
 ALTER TABLE licitacao ADD CONSTRAINT licitacao_fk2 FOREIGN KEY (leilao_leilaoid) REFERENCES leilao(leilaoid);
@@ -80,9 +59,8 @@ ALTER TABLE mensagem ADD CONSTRAINT mensagem_fk1 FOREIGN KEY (utilizador_userid)
 ALTER TABLE mensagem ADD CONSTRAINT mensagem_fk2 FOREIGN KEY (leilao_leilaoid) REFERENCES leilao(leilaoid);
 ALTER TABLE description ADD CONSTRAINT description_fk1 FOREIGN KEY (leilao_leilaoid) REFERENCES leilao(leilaoid);
 
-
 \set autocommit off;
-SET TIME ZONE 'Europe/London'
+SET TIME ZONE 'Europe/London';
 
 create or replace procedure licitar(p_valor licitacao.valor%type, 
 									p_user_id licitacao.utilizador_userid%type, 
@@ -95,18 +73,18 @@ declare
 												SELECT minprice, utilizador_userid 
 												FROM leilao 
 												WHERE leilaoid = c_p_leilaoid;
-	v_valor licitacao.valor%type;
-	v_user_id licitacao.utilizador_userid%type;
+	v_valor leilao.minprice%type;
+	v_user_id leilao.utilizador_userid%type;
 begin
 	OPEN c_leilao(p_leilaoid);
 	OPEN c_licitacao;
 	fetch c_leilao into v_valor, v_user_id;
 	
-	if p_user_id!=v_user_id then 
-		if p_valor > (select max(valor) from licitacao where leilao_leilaoid = p_leilaoid group by leilao_leilaoid) then
+	IF p_user_id!=v_user_id THEN 
+		IF p_valor > (SELECT ISNULL(MAX(valor), v_valor) FROM licitacao WHERE leilao_leilaoid = p_leilaoid GROUP BY leilao_leilaoid) THEN
 			INSERT INTO licitacao VALUES (p_valor, NOW(), p_user_id, p_leilaoid);
-		end if;
-	end if;
-	COMMIT;
+		END IF;
+	END IF;
+COMMIT;
 end;
 $$;
