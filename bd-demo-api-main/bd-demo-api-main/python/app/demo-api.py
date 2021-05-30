@@ -399,7 +399,7 @@ def mural():
                 result.append( {
                                 "mensagem" : i[1],
                                 "data": str (i[0]),
-                                #"userId": str (i[3]),
+                                "userId": str (i[3]),
                                 "auctionId":str(i[2])
                                 } )
         
