@@ -1,7 +1,7 @@
 from jose import jwt
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
-import logging, psycopg2, time, sys, os, random
+import logging, psycopg2, time, sys, os
 from random import randint
 
 app = Flask(__name__) 
@@ -172,8 +172,8 @@ def add_leilao():
         ## ------- add description to descriptions table ------##
 
         statement = """
-                        INSERT INTO description VALUES ( %s, %s, %s )"""
-        values = ( payload["description"], "now()", str(next_leilaoid[0]) )
+                        INSERT INTO description VALUES ( %s, %s, %s, %s )"""
+        values = ( payload["description"], "now()", payload["auction_title"] ,str(next_leilaoid[0]) )
         cur.execute(statement, values)
 
         cur.execute("commit")
