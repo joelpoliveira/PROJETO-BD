@@ -297,7 +297,7 @@ def alterarLeilao(auctionid):
         
         statement = """ UPDATE leilao 
                         SET auctiontitle = %s 
-                        WHERE leilaoid = % AND utilizador_userid = %s """ 
+                        WHERE leilaoid = %s AND utilizador_userid = %s """ 
         values =( payload["auctiontitle"], str(auctionid), info["sub"])
         cursor.execute(statement, values)    
         # cursor.close()        
@@ -587,13 +587,48 @@ def bid_auction(leilaoid, licitacao):
         logger.error(dberr)
         result = {"erro":str(db_error_code(dberr))}
         cur.execute("rollback")
-    except Exception as err:
-        result = {"erro":str(err.code)}
-        cur.execute("rollback")
     finally:
         if conn is not None:
             conn.close()
     return jsonify(result)
+
+@app.route("/dbproj/licitar/idleilao", methods = ['PUT'])
+def fimLeilao(idleilao):
+    token = request.headers.get("Authorization").split()
+
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
+
+    conn = db_connection()
+    cursor = conn.cursor()
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        logger.info("---- info loaded  ----")
+        logger.debug(f'info: {info}')
+        
+        statement = """ UPDATE item 
+                        SET utilizador_userid = (SELECT utilizador_userid FROM licitacao 
+                            WHERE data = (SELECT max(data) FROM licitacao WHERE leilao_leilaoid = %s) 
+                        WHERE now() =  (SELECT data FROM leilao
+                                        WHERE leilaoid = %s)"""
+        values = (idleilao, idleilao)
+
+        cursor.execute(statement, values)
+        cursor.execute("commit")
+
+        result = "Leilão Terminado"
+    
+    except psycopg2.DatabaseError as dberr:
+        logger.error(dberr)
+        result = {"erro":str(db_error_code(dberr))}
+        cursor.execute("rollback")
+    finally:
+        if conn is not None:
+            conn.close()
+    return jsonify(result)
+    
+    
 
 ##########################################################
 ## DATABASE ACCESS
