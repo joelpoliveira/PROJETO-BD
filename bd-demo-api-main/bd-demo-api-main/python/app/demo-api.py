@@ -533,6 +533,12 @@ def user_auctions():
             conn.close()
     return jsonify(result)
 
+# --------------
+#
+# 
+#
+# ----------------
+
 @app.route("/dbproj/licitar/<leilaoid>/<licitacao>", methods = ['GET'])
 def bid_auction(leilaoid, licitacao):
     token = request.headers.get("Authorization").split()
@@ -560,7 +566,7 @@ def bid_auction(leilaoid, licitacao):
         result = {"erro":str(db_error_code(dberr))}
         cur.execute("rollback")
     except Exception as err:
-        result = {"erro":str(err)}
+        result = {"erro":str(err.code)}
         cur.execute("rollback")
     finally:
         if conn is not None:

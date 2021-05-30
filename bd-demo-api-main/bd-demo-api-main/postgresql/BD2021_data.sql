@@ -34,7 +34,7 @@ CREATE TABLE licitacao (
 CREATE TABLE mensagem (
 	mensagem		 VARCHAR(512) NOT NULL,
 	data		 TIMESTAMP NOT NULL,
-	utilizador_userid NUMERIC(8,0) NOT NULL DEFAULT 0,
+	utilizador_userid NUMERIC(8,0) DEFAULT NULL,
 	leilao_leilaoid	 NUMERIC(8,0) NOT NULL DEFAULT 0,
 	PRIMARY KEY(data)
 );
@@ -95,6 +95,58 @@ begin
 	ELSE
 		RAISE 'CANNOT BID YOUR OWN AUCTION' USING ERRCODE = '23514';
 	END IF;
+end;
+$$;
+
+create or replace function get_messages(p_user_id mensagem.utilizador_userid%type)
+returns table ( data_envio timestamp, mensagens varchar, msg_leilaoid leilao.leilaoid%type )
+language plpgsql
+as $$
+declare
+	c_licitacoes cursor for select leilao_leilaoid 
+							from licitacao
+							where utilizador_userid = p_user_id;
+	c_leilao cursor for select leilaoid
+						from leilao
+						where utilizador_userid = p_user_id;
+	v_leilaoid leilao.leilaoid%type;
+	row_now record;
+begin
+	open c_licitacoes;	
+	loop
+		fetch  c_licitacoes into v_leilaoid;
+		exit when not found;
+			for row_now in ( SELECT * FROM mensagem 
+							WHERE utilizador_userid is not NULL
+									AND leilao_leilaoid = v_leilaoid) loop
+				data_envio := row_now.data;
+				mensagens := row_now.mensagem;
+				msg_leilaoid := row_now.leilao_leilaoid;
+				return next;
+			end loop;
+	end loop;
+	
+	open c_leilao;
+	loop
+		fetch  c_leilao into v_leilaoid;
+		exit when not found;
+			for row_now in ( SELECT * FROM mensagem 
+							WHERE utilizador_userid is not NULL
+									AND leilao_leilaoid = v_leilaoid) loop
+				data_envio := row_now.data;
+				mensagens := row_now.mensagem;
+				msg_leilaoid := row_now.leilao_leilaoid;
+				return next;
+			end loop;
+	end loop;
+	
+	for row_now in ( SELECT * FROM mensagem 
+						WHERE utilizador_userid = p_user_id) loop
+		data_envio := row_now.data;
+		mensagens := row_now.mensagem;
+		msg_leilaoid := row_now.leilao_leilaoid;
+		return next;
+	end loop;
 end;
 $$;
 
