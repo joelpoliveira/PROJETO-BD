@@ -80,11 +80,16 @@ begin
 	OPEN c_licitacao;
 	fetch c_leilao into v_valor, v_user_id;
 	
-	IF p_user_id!=v_user_id THEN 
-		IF p_valor > (SELECT ISNULL(MAX(valor), v_valor) FROM licitacao WHERE leilao_leilaoid = p_leilaoid GROUP BY leilao_leilaoid) THEN
+	IF p_user_id!=v_user_id THEN
+		IF (SELECT EXISTS(SELECT COUNT(*) FROM licitacao WHERE leilao_leilaoid = p_leilaoid GROUP BY leilao_leilaoid))='f' THEN
+			IF p_valor > v_valor THEN
+				INSERT INTO licitacao VALUES (p_valor, NOW(), p_user_id, p_leilaoid);
+			END IF;
+		ELSIF p_valor > (SELECT MAX(valor) FROM licitacao WHERE leilao_leilaoid = p_leilaoid GROUP BY leilao_leilaoid) THEN
 			INSERT INTO licitacao VALUES (p_valor, NOW(), p_user_id, p_leilaoid);
 		END IF;
 	END IF;
+	
 COMMIT;
 end;
 $$;

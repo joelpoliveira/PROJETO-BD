@@ -43,7 +43,7 @@ def add_user_or_login():
                     INSERT INTO utilizador (userid, username, password, email) 
                     VALUES ( %s, %s, %s, %s)"""
 
-        values = (str(next_userid[0]), payload["username"].strip(), payload["password"], payload["email"].strip())
+        values = (str(next_userid[0]), payload["username"].strip(), str(hash(payload["password"])), payload["email"].strip())
 
         try:
             cur.execute(statement, values)
@@ -58,7 +58,7 @@ def add_user_or_login():
         cur.execute("""SELECT password, userid FROM utilizador where username = %s""", (payload["username"].strip(),))
         row = cur.fetchone()
         try:
-            if row[0] == payload["password"]:
+            if row[0] == str(hash(payload["password"])):
                 to_token = { 
                             "sub": str(row[1]),
                             "username": payload["username"]    
@@ -81,8 +81,8 @@ def add_user_or_login():
 ##
 ## ----------------------
 
-@app.route("/dbproj/item", methods=['POST'])
-def add_item(): 
+@app.route("/dbproj/item", methods=['POST','GET'])
+def add_item_or_list(): 
     token = request.headers.get("Authorization").split()
     payload = request.get_json()
 
@@ -91,22 +91,33 @@ def add_item():
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
         
-        next_itemid = get_isbn()
-        cur.execute("SELECT * FROM item WHERE itemid = %s", (next_itemid,))
-        row = cur.fetchone()
-
-        while row!=None:
+        if request.method=='POST':
             next_itemid = get_isbn()
             cur.execute("SELECT * FROM item WHERE itemid = %s", (next_itemid,))
-            row = cur.fetchall()
+            row = cur.fetchone()
 
-        statement = """
-                        INSERT INTO item VALUES ( %s, %s, %s)"""
+            while row!=None:
+                next_itemid = get_isbn()
+                cur.execute("SELECT * FROM item WHERE itemid = %s", (next_itemid,))
+                row = cur.fetchall()
 
-        values = ( next_itemid , payload["itemname"], info["sub"])
-        cur.execute(statement, values)
-        cur.execute("commit")
-        result = {"itemid": next_itemid }
+            statement = """
+                            INSERT INTO item VALUES ( %s, %s, %s)"""
+
+            values = ( next_itemid , payload["itemname"], info["sub"])
+            cur.execute(statement, values)
+            cur.execute("commit")
+            result = {"itemid": next_itemid }
+        else:
+            cur.execute("""SELECT itemid, itemname FROM item WHERE utilizador_userid = %s""", ( info["sub"] ,) )
+            rows = cur.fetchall()
+
+            result = []
+            for i in rows:
+                result.append( {
+                                "itemid" : i[0],
+                                "itemname": i[1]
+                                } )
         
     except Exception as err:
         cur.execute("rollback")
