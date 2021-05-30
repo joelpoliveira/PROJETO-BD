@@ -84,12 +84,17 @@ begin
 		IF (SELECT EXISTS(SELECT COUNT(*) FROM licitacao WHERE leilao_leilaoid = p_leilaoid GROUP BY leilao_leilaoid))='f' THEN
 			IF p_valor > v_valor THEN
 				INSERT INTO licitacao VALUES (p_valor, NOW(), p_user_id, p_leilaoid);
+			ELSE
+				RAISE 'BID MUST BE LARGER MINPRICE OF AUCTION' USING ERRCODE = '23514';
 			END IF;
 		ELSIF p_valor > (SELECT MAX(valor) FROM licitacao WHERE leilao_leilaoid = p_leilaoid GROUP BY leilao_leilaoid) THEN
 			INSERT INTO licitacao VALUES (p_valor, NOW(), p_user_id, p_leilaoid);
+		ELSE
+			RAISE 'BID MUST BE LARGER THAN LARGEST BIT AT THE MOMENT' USING ERRCODE = '23514';
 		END IF;
+	ELSE
+		RAISE 'CANNOT BID YOUR OWN AUCTION' USING ERRCODE = '23514';
 	END IF;
-	
-COMMIT;
 end;
 $$;
+

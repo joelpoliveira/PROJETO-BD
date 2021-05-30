@@ -3,7 +3,7 @@ from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 import logging, psycopg2, time, sys, os
 from random import randint
-
+from hashlib import md5
 app = Flask(__name__) 
 
 def db_error_code(error):
@@ -16,6 +16,8 @@ def get_isbn():
     ret += 'X' if check==10 else str(check)
     return ret
 
+def get_hashcode( string ):
+    return md5( string.encode() ).hexdigest()
 ## ----------------------
 ##
 ## Login or Create a new User
@@ -43,7 +45,7 @@ def add_user_or_login():
                     INSERT INTO utilizador (userid, username, password, email) 
                     VALUES ( %s, %s, %s, %s)"""
 
-        values = (str(next_userid[0]), payload["username"].strip(), str(hash(payload["password"])), payload["email"].strip())
+        values = (str(next_userid[0]), payload["username"].strip(), get_hashcode(payload["password"]), payload["email"].strip())
 
         try:
             cur.execute(statement, values)
@@ -58,7 +60,7 @@ def add_user_or_login():
         cur.execute("""SELECT password, userid FROM utilizador where username = %s""", (payload["username"].strip(),))
         row = cur.fetchone()
         try:
-            if row[0] == str(hash(payload["password"])):
+            if row[0] == get_hashcode(payload["password"]):
                 to_token = { 
                             "sub": str(row[1]),
                             "username": payload["username"]    
@@ -197,7 +199,7 @@ def add_leilao():
 # --------------
 
 @app.route("/dbproj/leilao/<leilaoid>", methods=['GET'])
-def auction_details(leilaoid):
+def auction_details_or_change(leilaoid):
     token = request.headers.get("Authorization")
     logger.info("---- leilaoid loaded  ----")
     logger.debug(f'leilaoid: {leilaoid}')
@@ -261,8 +263,14 @@ def auction_details(leilaoid):
         if conn is not None:
             conn.close()
     return jsonify(result)
-    
-@app.route("/dbproj/leilao/<auctionid>",methods=['POST'])
+
+#---------------
+#
+# Change Auction Stats
+#
+#---------------
+
+@app.route("/dbproj/leilao/<auctionid>",methods=['PUT'])
 def alterarLeilao(auctionid):
     token = request.headers.get("Authorization").split()
     payload = request.get_json()
@@ -273,41 +281,44 @@ def alterarLeilao(auctionid):
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
         
-    #Altera a informação do leilao
+        logger.info("---- token loaded  ----")
+        logger.debug(f'true_token: {info}')
+        #Altera a informação na tabela leilao
         
-        statement = """ UPDATE leilao \
-                      SET auctiontitle = %s \
-                      WHERE leilaoid = %s""" 
-        values =(str(payload["auctiontitle"]), str(auctionid))
-        cursor.execute(statement, values)
-        cursor.execute("commit")
-        
-        result = auctionid
-        cursor.close()        
-    except (Exception, psycopg2.DatabaseError) as error:
-        logger.error(error)
-        result = 'Failed!'
-    
-#Altera a descrição do item
-                
-    try:
-        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+        statement = """ UPDATE leilao SET auctiontitle = %s WHERE leilaoid = %s""" 
+        values =( payload["auctiontitle"], str(auctionid))
+        cursor.execute(statement, values)    
+        # cursor.close()        
+
+        logger.info("---- update finished  ----")
+        #Altera a informacao na tabela descricao
         cursor = conn.cursor()
-        statement = """ UPDATE description \
-                      SET description = %s \
-                      WHERE leilao_leilaoid = %s """ 
-        
-        values = (str(payload["description"]), str(auctionid))
+        statement = """ INSERT INTO description VALUES(%s, %s, %s, %s) """ 
+        values = (str(payload["description"]), "now()", payload["auctiontitle"], str(auctionid))
         cursor.execute(statement,values)
         cursor.execute("commit")
-        result = auctionid
-    except (Exception, psycopg2.DatabaseError) as error:
+        cursor.close()
+
+        cursor = conn.cursor()
+        statement = """SELECT * FROM leilao WHERE leilaoid = %s"""
+        values = ( str(auctionid), )
+        cursor.execute(statement, values)
+        row = cursor.fetchone()
+
+        result = dict( zip( ("minprice", "auctiontile", "leilaoid", "datafim", "userid", "itemid"), list(map(lambda x: str(x).strip(),row)) ) )
+
+    except psycopg2.DatabaseError as error:
+        cursor.execute("rollback")
         logger.error(error)
-        result = 'Failed!'
+        result = {"erro": str(db_error_code(error))}
+    except Exception as gen_error:
+        cursor.execute("rollback")
+        logger.error(gen_error)
+        result = {"erro":str(gen_error)}
     finally:
             if conn is not None:
                 conn.close()
-    return result
+    return jsonify(result)
 
 
 @app.route("/dbproj/mensagem/<idLeilao>", methods=['POST'])
@@ -336,7 +347,7 @@ def enviarMensagem(idLeilao):
                 conn.close()
     return result
 
-@app.route("/dbproj/mensagem", methods=['POST'])
+@app.route("/dbproj/mensagem", methods=['GET'])
 def mural():
     token = request.headers.get("Authorization").split()
     payload = request.get_json()
@@ -522,7 +533,39 @@ def user_auctions():
             conn.close()
     return jsonify(result)
 
+@app.route("/dbproj/licitar/<leilaoid>/<licitacao>", methods = ['GET'])
+def bid_auction(leilaoid, licitacao):
+    token = request.headers.get("Authorization").split()
 
+    logger.info("---- token retrieved  ----")
+    logger.debug(f'token: {token}')
+
+    conn = db_connection()
+    cur = conn.cursor()
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
+
+        logger.info("---- info loaded  ----")
+        logger.debug(f'info: {info}')
+
+        statement = """ CALL licitar(%s, %s, %s) """
+        values = ( str(licitacao), info["sub"] , str(leilaoid) )
+
+        cur.execute(statement, values)
+        cur.execute("commit")
+
+        result = {"Resultado":"Sucesso"}
+    except psycopg2.DatabaseError as dberr:
+        logger.error(dberr)
+        result = {"erro":str(db_error_code(dberr))}
+        cur.execute("rollback")
+    except Exception as err:
+        result = {"erro":str(err)}
+        cur.execute("rollback")
+    finally:
+        if conn is not None:
+            conn.close()
+    return jsonify(result)
 
 ##########################################################
 ## DATABASE ACCESS
