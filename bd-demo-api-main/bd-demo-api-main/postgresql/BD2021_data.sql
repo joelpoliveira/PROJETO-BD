@@ -115,12 +115,17 @@ declare
 						from leilao
 						where utilizador_userid = p_user_id;
 	v_leilaoid leilao.leilaoid%type;
+	v_userid utilizador.userid%type;
 	row_now record;
 begin
 	open c_mensagens;
 	loop
 		fetch c_mensagens into v_leilaoid;
 		exit when not found;
+			
+		SELECT utilizador_userid INTO v_userid FROM leilao WHERE leilaoid = v_leilaoid;				 
+		continue when v_userid = p_user_id;
+		
 			for row_now in ( SELECT * FROM mensagem
 								WHERE (directedto is NULL
 									AND leilao_leilaoid = v_leilaoid) OR directedto = p_user_id) loop
@@ -136,8 +141,8 @@ begin
 	loop
 		fetch  c_leilao into v_leilaoid;
 		exit when not found;
-			for row_now in ( SELECT * FROM mensagem 
-							WHERE directedto is not NULL
+			for row_now in ( SELECT * FROM mensagem  
+							WHERE directedto is NULL
 									AND leilao_leilaoid = v_leilaoid) loop
 				data_envio := row_now.data;
 				mensagens := row_now.mensagem;
@@ -162,6 +167,9 @@ declare
 begin
 	open c_licitacao_trigger;
 	fetch c_licitacao_trigger into v_userid;
+	if not found then
+		v_userid := NULL;
+	end if;
 	if v_userid!=new.utilizador_userid then
 		insert into mensagem values('Licitacao Ultrapassada', NOW(), v_userid, new.utilizador_userid, new.leilao_leilaoid);
 	end if;
@@ -174,4 +182,3 @@ before insert on licitacao
 for each row 
 execute procedure notify_user_bid_exceeded();
 
--- Procedimento para verificar termino de leiloes que ainda decorrem ------------

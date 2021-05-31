@@ -225,10 +225,9 @@ def auction_details(leilaoid):
         logger.info("---- token loaded  ----")
         logger.debug(f'true_token: {info}')
 
-        statement = """SELECT description, datafim FROM description, leilao
+        statement = """SELECT description, datafim, minprice, auctiontitle FROM description, leilao
                             WHERE leilaoid = %s AND data in (SELECT max(data) FROM description, leilao
-                                                WHERE datafim>NOW() AND leilao_leilaoid = %s
-                                                        GROUP BY leilao_leilaoid);"""
+                                                WHERE datafim>NOW() AND leilao_leilaoid = %s);"""
         values = ( str(leilaoid), str(leilaoid) )
         cur.execute(statement, values)
         row = cur.fetchone()
@@ -237,13 +236,15 @@ def auction_details(leilaoid):
             result = {
                         "leilaoid":str(leilaoid),
                         "descricao":row[0],
-                        "data_fim":str(row[1])
+                        "data_fim":str(row[1]),
+                        "min_price":str(row[2]),
+                        "titulo":row[3]
                     }
 
             cur.close()
 
             cur = conn.cursor()
-            statement = """SELECT data, mensagem, utilizador_userid FROM mensagem WHERE leilao_leilaoid = %s"""
+            statement = """SELECT data, mensagem, utilizador_userid FROM mensagem WHERE leilao_leilaoid = %s AND directedto is NULL"""
             values = (str(leilaoid), )
             cur.execute(statement, values)
 
@@ -368,6 +369,47 @@ def enviarMensagem(idLeilao):
                 conn.close()
     return jsonify(result)
 
+# --------------------
+#
+# Get Messages Directed to User 
+#
+# -----------------
+
+@app.route("/dbproj/mensagem/user", methods = ['GET'])
+def user_messages():
+    token = request.headers.get("Authorization").split()
+
+    conn = db_connection()
+    cur = conn.cursor()
+
+    try:
+        info = jwt.decode(token[1], 'secret', algorithms=['HS256'])
+
+        statement = """SELECT * FROM get_messages(%s)"""
+        values = ( info["sub"], )
+
+        cur.execute(statement, values)
+        rows = cur.fetchall()
+
+        result = []
+        for i in rows:
+            if i is not None:
+                result.append( {
+                                "data":str(i[0]),
+                                "mensagem":i[1],
+                                "leilaoid":str(i[2]),
+                                "userid":str(i[3])
+                            })
+    except psycopg2.DatabaseError as dberr:
+        result = {"erro": str(db_error_code(dberr))}
+        logger.error((dberr))
+    except Exception as err:
+        result = {"erro": str(err)}
+        logger.error(err)
+    finally:
+        if conn is not None:
+            conn.close()
+    return jsonify(result)
 # ------------------------
 #
 # Get Messages From Leilao
@@ -488,27 +530,29 @@ def search_auctions(keyword):
 
         result = []
         for i in rows:
-            result.append( { 
+            if i is not None:
+                result.append( { 
                             "leilaoid" : str(i[0]), 
                             "descricao" : i[1]
                             } )
         cur.close()
 
-        if str(keyword).isnumeric():
-            cur = conn.cursor()
-            statement = """SELECT leilao_leilaoid, description FROM description,leilao 
-                                WHERE item_itemid=%s AND leilaoid=leilao_leilaoid AND data in (SELECT max(data) FROM description, leilao 
-                                                    WHERE datafim>NOW() AND leilaoid=leilao_leilaoid 
-                                                            GROUP BY leilao_leilaoid)""" 
-            values = (str(keyword), )
-            cur.execute(statement, values)
-            rows = cur.fetchall()
+        
+        cur = conn.cursor()
+        statement = """SELECT leilao_leilaoid, description FROM description,leilao 
+                            WHERE item_itemid=%s AND leilaoid=leilao_leilaoid AND data in (SELECT max(data) FROM description, leilao 
+                                                WHERE datafim>NOW() AND leilaoid=leilao_leilaoid 
+                                                        GROUP BY leilao_leilaoid)""" 
+        values = (str(keyword), )
+        cur.execute(statement, values)
+        rows = cur.fetchall()
 
-            for i in rows:
+        for i in rows:
+            if i is not None:
                 result.append( { 
-                                "leilaoid" : str(i[0]), 
-                                "descricao" : i[1]
-                                } )
+                            "leilaoid" : str(i[0]), 
+                            "descricao" : i[1]
+                            } )
     except Exception as err:
         logger.error(str(err))
         result = {"erro" : "401"}
