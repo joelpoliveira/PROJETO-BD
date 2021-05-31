@@ -10,7 +10,7 @@ CONSULTAR LEILÃO:					O; check -- JOEL
 LIST LEILÕES COM USER:				O; check -- JOEL
 EFETUAR LICITAÇÃO:					O; check -- JOEL
 EDITAR LEILÃO:						O; check -- JOAO
-MSG MURAL DO LEILÃO:				X; check -- JOAO
+MSG MURAL DO LEILÃO:				O; check -- JOAO
 ENTREGA DE MSG A USERS:				O; check -- JOAO/JOEL
 NOTIFICAR LICITAÇÃO ULTRAPASSADA:	O; check -- JOEL
-TÉRMINO DE LEILÃO:					X;
+TÉRMINO DE LEILÃO:					O; check -- JOAO
