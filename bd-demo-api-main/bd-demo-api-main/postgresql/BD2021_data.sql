@@ -183,3 +183,31 @@ before insert on licitacao
 for each row 
 execute procedure notify_user_bid_exceeded();
 
+-- Procedimento Para verificar termino de leilao ----------
+create or replace procedure check_leiloes_finished()
+language plpgsql
+as $$
+declare
+	c_leiloes cursor for SELECT leilaoid, item_itemid FROM leilao 
+							WHERE isgoing = 0 AND datafim<NOW();
+	v_leilaoid leilao.leilaoid%type;
+	v_itemid item.itemid%type;
+	v_userid utilizador.userid%type;
+begin
+	open c_leilao;
+	loop
+		fetch c_leilao into v_leilaoid, v_itemid;
+		exit when not found;
+		
+		SELECT utilizador_userid 
+			INTO v_user_id
+				FROM licitacao 
+				WHERE data = (SELECT max(data) 
+								FROM licitacao 
+								WHERE leilao_leilaoid = v_leilaoid);
+		
+		UPDATE item SET utilizador_userid = v_userid WHERE itemid = v_itemid;
+		
+	end loop;
+end;
+$$;
