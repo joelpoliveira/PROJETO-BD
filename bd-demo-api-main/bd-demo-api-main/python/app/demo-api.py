@@ -178,9 +178,9 @@ def add_leilao():
 
             statement = """ 
                         
-                            INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s)"""
+                            INSERT INTO leilao VALUES ( %s, %s, %s, %s, %s, %s, %s)"""
     
-            values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"] )
+            values = ( payload["min_price"], payload["auction_title"], str(next_leilaoid[0]), payload["data_fim"], info["sub"], payload["item_id"], "0" )
             cur.execute(statement, values)
     
             ## ------- add description to descriptions table ------##
