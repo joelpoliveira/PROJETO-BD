@@ -677,8 +677,8 @@ def bid_auction(leilaoid, licitacao):
 #
 # ------------------
 
-@app.route("/dbproj/termino/<idleiao>", methods = ['GET'])
-def fimLeilao(idleilao):
+@app.route("/dbproj/termino", methods = ['GET'])
+def fimLeilao():
     token = request.headers.get("Authorization").split()
 
     logger.info("---- token retrieved  ----")
@@ -692,9 +692,7 @@ def fimLeilao(idleilao):
         logger.info("---- info loaded  ----")
         logger.debug(f'info: {info}')
         
-        statement = """ UPDATE item 
-                        SET utilizador_userid = (SELECT utilizador_userid FROM licitacao 
-                                                    WHERE data = (SELECT max(data) FROM licitacao WHERE leilao_leilaoid = %s) 
+        statement = """  
                         """
         values = (idleilao, idleilao)
 

@@ -207,7 +207,7 @@ begin
 								WHERE leilao_leilaoid = v_leilaoid);
 		
 		UPDATE item SET utilizador_userid = v_userid WHERE itemid = v_itemid;
-		
+		UPDATE leilao SET isgoing = 1 WHERE leilaoid = v_leilaoid;
 	end loop;
 end;
 $$;
