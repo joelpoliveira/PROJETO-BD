@@ -121,11 +121,14 @@ def add_item_or_list():
                                 "itemid" : i[0],
                                 "itemname": i[1]
                                 } )
-        
+    except psycopg2.DatabaseError as dberr:
+        cur.execute("rollback")
+        logger.error(dberr)
+        result = { "erro" : str(db_error_code(dberr))}
     except Exception as err:
         cur.execute("rollback")
         logger.error(err)
-        result = { "erro" : str(err)}
+        result = { "erro" : "400"}
     finally:
             if conn is not None:
                 conn.close()
@@ -191,10 +194,13 @@ def add_leilao():
     
             result = {"leilaoid": str(next_leilaoid[0])}
         else: raise Exception
-        
+    except psycopg2.DatabaseError as dberr:
+        logger.error(dberr)
+        result = {"erro":str(db_error_code(dberr))}
+        cur.execute("rollback")
     except Exception as err:
         logger.error(str(err))
-        result = { "erro" : str(err)}
+        result = { "erro" : "401"}
         cur.execute("rollback")
     finally:
         if conn is not None:
@@ -218,6 +224,7 @@ def auction_details(leilaoid):
     token = request.headers.get("Authorization").split()
 
     conn = db_connection()
+    conn.set_session(readonly=True)
     cur = conn.cursor()
     try:
         info = jwt.decode(token[1], 'secret', algorithms=["HS256"])
@@ -238,13 +245,14 @@ def auction_details(leilaoid):
                         "descricao":row[0],
                         "data_fim":str(row[1]),
                         "min_price":str(row[2]),
-                        "titulo":row[3]
+                        "titulo":row[3].strip()
                     }
 
             cur.close()
 
             cur = conn.cursor()
-            statement = """SELECT data, mensagem, utilizador_userid FROM mensagem WHERE leilao_leilaoid = %s AND directedto is NULL"""
+            statement = """SELECT data, mensagem, utilizador_userid FROM mensagem WHERE leilao_leilaoid = %s AND directedto is NULL
+                            ORDER BY data DESC"""
             values = (str(leilaoid), )
             cur.execute(statement, values)
 
@@ -257,7 +265,10 @@ def auction_details(leilaoid):
             cur.close()
 
             cur = conn.cursor()
-            statement = """SELECT utilizador_userid, valor, data FROM licitacao WHERE leilao_leilaoid = %s""" 
+            statement = """SELECT utilizador_userid, valor, data 
+                            FROM licitacao 
+                                WHERE leilao_leilaoid = %s 
+                                ORDER BY data DESC""" 
             cur.execute(statement, values)
 
             rows = cur.fetchall()
@@ -299,28 +310,34 @@ def alterarLeilao(auctionid):
         
         statement = """ UPDATE leilao 
                         SET auctiontitle = %s 
-                        WHERE leilaoid = %s AND utilizador_userid = %s """ 
+                        WHERE leilaoid = %s AND utilizador_userid = %s 
+                        RETURNING leilao.*""" 
         values =( payload["auctiontitle"], str(auctionid), info["sub"])
         cursor.execute(statement, values)    
-        # cursor.close()        
-
-        logger.info("---- update finished  ----")
-        #Altera a informacao na tabela descricao
-        cursor = conn.cursor()
-        statement = """ INSERT INTO description VALUES(%s, %s, %s, %s) """ 
-        values = (str(payload["description"]), "now()", payload["auctiontitle"], str(auctionid))
-        cursor.execute(statement,values)
-        cursor.execute("commit")
+        row = cursor.fetchone()
         cursor.close()
 
-        cursor = conn.cursor()
-        statement = """SELECT * FROM leilao WHERE leilaoid = %s"""
-        values = ( str(auctionid), )
-        cursor.execute(statement, values)
-        row = cursor.fetchone()
+        logger.info("---- update finished  ----")
 
-        result = dict( zip( ("minprice", "auctiontile", "leilaoid", "datafim", "userid", "itemid"), list(map(lambda x: str(x).strip(),row)) ) )
+        if row is not None:
 
+        #Altera a informacao na tabela descricao
+            cursor = conn.cursor()
+            statement = """ INSERT INTO description VALUES(%s, %s, %s, %s) """ 
+            values = (str(payload["description"]), "now()", payload["auctiontitle"], str(auctionid))
+            cursor.execute(statement,values)
+            cursor.execute("commit")
+            cursor.close()
+
+        #cursor = conn.cursor()
+        #statement = """SELECT * FROM leilao WHERE leilaoid = %s"""
+        #values = ( str(auctionid), )
+        #cursor.execute(statement, values)
+        #row = cursor.fetchone()
+
+            result = dict( zip( ("minprice", "auctiontile", "leilaoid", "datafim", "userid", "itemid"), list(map(lambda x: str(x).strip(),row)) ) )
+        
+        else: raise Exception
     except psycopg2.DatabaseError as error:
         cursor.execute("rollback")
         logger.error(error)
@@ -328,7 +345,7 @@ def alterarLeilao(auctionid):
     except Exception as gen_error:
         cursor.execute("rollback")
         logger.error(gen_error)
-        result = {"erro":str(gen_error)}
+        result = {"erro":"401"}
     finally:
             if conn is not None:
                 conn.close()
@@ -363,7 +380,7 @@ def enviarMensagem(idLeilao):
         result = {"erro":str(db_error_code(error))}
     except Exception as generr:
         logger.error(generr)
-        result = {"erro": str(generr.code)}
+        result = {"erro": "400"}
     finally:
             if conn is not None:
                 conn.close()
@@ -385,7 +402,7 @@ def user_messages():
     try:
         info = jwt.decode(token[1], 'secret', algorithms=['HS256'])
 
-        statement = """SELECT * FROM get_messages(%s)"""
+        statement = """SELECT * FROM get_messages(%s) ORDER BY mensagens DESC"""
         values = ( info["sub"], )
 
         cur.execute(statement, values)
@@ -404,7 +421,7 @@ def user_messages():
         result = {"erro": str(db_error_code(dberr))}
         logger.error((dberr))
     except Exception as err:
-        result = {"erro": str(err)}
+        result = {"erro": "400"}
         logger.error(err)
     finally:
         if conn is not None:
@@ -444,10 +461,12 @@ def mural():
                                 "userId": str (i[3]),
                                 "auctionId":str(i[2])
                                 } )
-        
-    except (Exception, psycopg2.DatabaseError) as error:
+    except psycopg2.DatabaseError as dberr:
+        logger.error(dberr)
+        result = {"erro": str(db_error_code(dberr))}    
+    except Exception as error:
         logger.error(error)
-        result = {"erro": str(error)}
+        result = {"erro": "400"}
     finally:
             if conn is not None:
                 conn.close()
@@ -520,7 +539,7 @@ def search_auctions(keyword):
         logger.info("---- token loaded  ----")
         logger.debug(f'true_token: {info}')
 
-        statement = """SELECT leilao_leilaoid, description FROM description 
+        statement = """SELECT DISTINCT leilao_leilaoid FROM description 
                             WHERE description like %s AND data in (SELECT max(data) FROM description, leilao 
                                                 WHERE datafim>NOW() AND leilaoid=leilao_leilaoid 
                                                         GROUP BY leilao_leilaoid)"""
@@ -710,7 +729,7 @@ def db_connection():
                             dbname = os.getenv('DB_NAME'),
                             port = os.getenv('PORT'),
                             user = os.getenv('USER'),
-                            password = os.getenv('PASSWORD')
+                            password = os.getenv('PASSWORD'),
                         )
     return db
 

@@ -3,6 +3,7 @@ CREATE TABLE leilao (
 	auctiontitle	 CHAR(255) NOT NULL,
 	leilaoid		 NUMERIC(8,0) DEFAULT 0,
 	datafim		 TIMESTAMP NOT NULL,
+	isgoing		 BOOLEAN,
 	utilizador_userid NUMERIC(8,0) NOT NULL DEFAULT 0,
 	item_itemid	 CHAR(10) NOT NULL,
 	PRIMARY KEY(leilaoid)
