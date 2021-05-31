@@ -72,15 +72,16 @@ create or replace procedure licitar(p_valor licitacao.valor%type,
 language plpgsql
 as $$
 declare
-	c_licitacao cursor for SELECT * FROM licitacao FOR UPDATE;
-	c_leilao cursor (c_p_leilaoid leilao.leilaoid%type) FOR 
-												SELECT minprice, utilizador_userid 
-												FROM leilao 
-												WHERE leilaoid = c_p_leilaoid;
+	c_licitacao cursor for SELECT * FROM licitacao 
+							WHERE leilao_leilaoid = p_leilaoid  
+							FOR UPDATE;
+	c_leilao cursor FOR SELECT minprice, utilizador_userid 
+							FROM leilao 
+							WHERE leilaoid = p_leilaoid;
 	v_valor leilao.minprice%type;
 	v_user_id leilao.utilizador_userid%type;
 begin
-	OPEN c_leilao(p_leilaoid);
+	OPEN c_leilao;
 	OPEN c_licitacao;
 	fetch c_leilao into v_valor, v_user_id;
 	
@@ -188,8 +189,8 @@ create or replace procedure check_leiloes_finished()
 language plpgsql
 as $$
 declare
-	c_leiloes cursor for SELECT leilaoid, item_itemid FROM leilao 
-							WHERE isgoing = 0 AND datafim<NOW();
+	c_leilao cursor for SELECT leilaoid, item_itemid FROM leilao 
+							WHERE isgoing = 'f' AND datafim<NOW();
 	v_leilaoid leilao.leilaoid%type;
 	v_itemid item.itemid%type;
 	v_userid utilizador.userid%type;
@@ -200,14 +201,14 @@ begin
 		exit when not found;
 		
 		SELECT utilizador_userid 
-			INTO v_user_id
+			INTO v_userid
 				FROM licitacao 
 				WHERE data = (SELECT max(data) 
 								FROM licitacao 
 								WHERE leilao_leilaoid = v_leilaoid);
 		
 		UPDATE item SET utilizador_userid = v_userid WHERE itemid = v_itemid;
-		
+		UPDATE leilao SET isgoing = 1 WHERE leilaoid = v_leilaoid;
 	end loop;
 end;
 $$;
